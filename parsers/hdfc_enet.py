@@ -139,6 +139,26 @@ def _pairs(rows: list[list[str]]) -> list[tuple[list[str], list[str]]]:
     return pairs
 
 
+_DMY = re.compile(r"^\d{2}/\d{2}/\d{4}$")
+
+
+def _avenue_pairs(rows: list[list[str]]) -> list[tuple[list[str], list[str]]]:
+    """Avenue rows open on the line whose second cell is the invoice date. The second line
+    (TDS | site code | site name) is optional: deduction rows leave TDS blank and one-off
+    rows ('GST DEFT 2023 24') have no second line at all (2023-24 advices)."""
+    pairs = []
+    for cells in rows:
+        if _DMY.match(cells[1]):
+            pairs.append((cells, ["", "", "", ""]))
+        elif pairs and not any(pairs[-1][1]):
+            pairs[-1] = (pairs[-1][0], cells)
+        elif pairs:                                     # wrapped site name
+            pairs[-1][1][2] = (pairs[-1][1][2] + " " + " ".join(c for c in cells if c)).strip()
+        else:
+            raise ValueError(f"table line before any invoice row: {cells}")
+    return pairs
+
+
 def _signs_by_subset(amounts: list[float], target: float) -> list[int] | None:
     """Indexes to negate so that sum == target, by subset sum on paise."""
     total = round(sum(amounts) * 100)
@@ -169,7 +189,8 @@ def _sap(text: str, words: list, first: str, customer: str, source_file: str) ->
         source_file=source_file,
         extra={"beneficiary_code": _search(r"Beneficiary Code\s*:\s*(\S+)", text)},
     )
-    pairs = _pairs(_table_rows(words))
+    rows = _table_rows(words)
+    pairs = _avenue_pairs(rows) if customer == "dmart_ecom" else _pairs(rows)
 
     if customer == "rbml":
         for a, b in pairs:

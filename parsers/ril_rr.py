@@ -36,7 +36,8 @@ AMT = r"[\d,]+\.\d{2}-?"
 HEAD_RE = re.compile(r"settled the following items by Doc\.?\s*number\s+(\d+)\s*/\s*(\d{4})\s+for\s+INR\s+(" + AMT + ")",
                      re.I | re.S)
 TOTAL_RE = re.compile(r"^Total\s+INR\s+(" + AMT + r")\s*$", re.I | re.M)
-LINE_RE = re.compile(r"^(\d{6,12})\s+(\S+)\s+(" + AMT + r")(?:\s+(" + AMT + r"))?\s*$")
+# Inv./Ref is blank on some rows (Oct 2023: '1501236081 57.65').
+LINE_RE = re.compile(r"^(\d{6,12})(?:\s+(?!" + AMT + r"(?:\s|$))(\S+))?\s+(" + AMT + r")(?:\s+(" + AMT + r"))?\s*$")
 DATES_RE = re.compile(r"^(\d{2}\.\d{2}\.\d{4})(?:\s+(\d{2}\.\d{2}\.\d{4}))?\s*$")
 TDS_RE = re.compile(r"\(TDS Amount\s+(" + AMT + r")\s*\)", re.I)
 DATE_RE = re.compile(r"Date\s*:\s*(\d{2}\.\d{2}\.\d{4})")

@@ -28,22 +28,22 @@ ROUND = 2
 
 def _line(ref: str, amount: float) -> Line:
     ref = ref.strip()
-    body = ref[4:] if ref.upper().startswith("TDS_") else ref
+    body = ref[4:] if ref.upper().startswith(("TDS_", "TDS-")) else ref     # 2023 files: 'TDS-24IAHW001664'
     is_tds = body is not ref
     m = re.match(r"^(.*?)_([A-Z]+)$", body)
     suffix = m.group(2) if m else ""
     base = m.group(1) if m else body
+    is_prn = base.upper().startswith("PRN") or " PRN NO " in f" {base.upper()} "   # 2023: 'BBPUN002 PRN NO 85509'
     if is_tds:
         kind = "TDS"
     elif suffix == "GDN":
         kind = "GDN"
-    elif base.upper().startswith("PRN"):
+    elif is_prn:
         kind = "PRN"
     elif suffix:
         kind = "DEDUCTION"
     else:
         kind = "INVOICE"
-    is_prn = base.upper().startswith("PRN")
     return Line(
         invoice_no=None if is_prn or kind == "DEDUCTION" else base,
         doc_ref=ref if (is_prn or suffix or is_tds) else None,
@@ -77,13 +77,15 @@ def parse(mail: Mail) -> list[Advice]:
             c_site = col("payee site", "party ledger name")
             c_utr, c_date = col("utr no", "utr number"), col("utr date")
             c_inv = col("invoice number", "inv ref number")
-            c_amt = next(i for i, h in enumerate(hdr) if "amount" in h)
+            c_amt = next(i for i, h in enumerate(hdr) if "amount" in h or h == "total")   # Jun-Jul 2023: 'Total'
 
             cur: Advice | None = None
             site = None
             for r in rows[hdr_i + 1:]:
                 if not r or all(c in (None, "") for c in r):
                     continue
+                if any(str(c or "").strip().lower().startswith("grand total") for c in r):
+                    continue                         # Aug 2024 puts 'Grand Total' in the first column
                 utr_cell = str(r[c_utr] or "").strip()
                 if utr_cell.lower().endswith("total"):
                     if utr_cell.lower().startswith("grand"):
