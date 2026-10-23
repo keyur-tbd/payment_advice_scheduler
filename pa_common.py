@@ -26,6 +26,10 @@ TOKEN_FILE = os.environ.get("PA_GMAIL_TOKEN", os.path.join(HERE, "token.json"))
 # Lines must add up to the printed payment amount within this many rupees.
 TOLERANCE = 1.0
 
+# Gmail drops long sessions now and then (WinError 10054 mid-backfill); the client retries
+# connection resets and 5xx with exponential backoff.
+GMAIL_RETRIES = 6
+
 
 # ---------------------------------------------------------------------------
 # Records
@@ -240,7 +244,7 @@ def gmail_service():
 def list_message_ids(svc, query: str, cap: int = 20000) -> List[str]:
     ids, token = [], None
     while True:
-        resp = svc.users().messages().list(userId="me", q=query, pageToken=token, maxResults=500).execute()
+        resp = svc.users().messages().list(userId="me", q=query, pageToken=token, maxResults=500).execute(num_retries=GMAIL_RETRIES)
         ids += [m["id"] for m in resp.get("messages", [])]
         token = resp.get("nextPageToken")
         if not token or len(ids) >= cap:
@@ -274,7 +278,7 @@ def fetch_mail(svc, mid: str, cache_dir: Optional[str] = None) -> Mail:
         with open(_cache_path(cache_dir, mid), encoding="utf-8") as fh:
             raw = json.load(fh)
     else:
-        msg = svc.users().messages().get(userId="me", id=mid, format="full").execute()
+        msg = svc.users().messages().get(userId="me", id=mid, format="full").execute(num_retries=GMAIL_RETRIES)
         headers = {h["name"].lower(): h["value"] for h in msg["payload"].get("headers", [])}
         html = text = ""
         atts = []
@@ -282,7 +286,7 @@ def fetch_mail(svc, mid: str, cache_dir: Optional[str] = None) -> Mail:
             body = p.get("body", {})
             if p.get("filename") and body.get("attachmentId"):
                 data = svc.users().messages().attachments().get(
-                    userId="me", messageId=mid, id=body["attachmentId"]).execute()["data"]
+                    userId="me", messageId=mid, id=body["attachmentId"]).execute(num_retries=GMAIL_RETRIES)["data"]
                 atts.append({"name": p["filename"], "b64": data})
             elif p.get("filename") and body.get("data"):
                 atts.append({"name": p["filename"], "b64": body["data"]})
