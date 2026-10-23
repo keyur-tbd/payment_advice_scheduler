@@ -1,0 +1,43 @@
+name: Payment advice to Supabase
+
+on:
+  schedule:
+    # 10:00, 15:00 and 20:00 IST. Each run re-lists the last 60 days and skips
+    # mails already in pa_mail_log, so a missed run loses nothing.
+    - cron: '30 4,9,14 * * *'
+  workflow_dispatch:
+    inputs:
+      feeds:
+        description: 'comma list of feeds (blank = all)'
+        required: false
+        default: ''
+      since:
+        description: 'YYYY-MM-DD to re-list from (blank = last 60 days)'
+        required: false
+        default: ''
+
+concurrency:
+  group: payment-advice
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Run feeds
+        env:
+          PA_GMAIL_TOKEN_JSON: ${{ secrets.PA_GMAIL_TOKEN_JSON }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PA_PDF_PASSWORDS: ${{ secrets.PA_PDF_PASSWORDS }}
+        run: |
+          args=""
+          if [ -n "${{ github.event.inputs.feeds }}" ]; then args="$args --feeds ${{ github.event.inputs.feeds }}"; fi
+          if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
+          python run.py $args
