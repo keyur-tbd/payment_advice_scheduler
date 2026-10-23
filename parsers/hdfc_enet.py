@@ -47,7 +47,8 @@ PAYERS = (
     ("AVENUE ECOMMERCE", "dmart_ecom"),
     ("TRENT HYPERMARKET", "star_bazaar"),
 )
-COL_EDGES = (150, 270, 390)          # cell boundaries between the four columns
+IGNORED_PAYERS = ("7INDIA CONVENIENCE",)   # 7-Eleven: one advice (Aug 2025), not tracked (user, 2026-10-23)
+COL_EDGES =(150, 270, 390)          # cell boundaries between the four columns
 _AMT = r"[\d,]+\.\d{2}-?"
 OUR_INVOICE = re.compile(r"^\d{2}[A-Z]{3}-\d+")
 
@@ -63,6 +64,8 @@ def _payer(first_line: str) -> str:
     for prefix, customer in PAYERS:
         if up.startswith(prefix):
             return customer
+    if up.startswith(IGNORED_PAYERS):
+        raise Skip(f"payer not tracked: {first_line}")
     raise ValueError(f"unknown HDFC Enet payer {first_line!r}")
 
 
