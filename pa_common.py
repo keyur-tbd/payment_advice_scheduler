@@ -147,7 +147,8 @@ def is_num(value) -> bool:
 
 
 _DATE_FORMATS = ("%d.%m.%Y", "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d-%b-%Y", "%d-%B-%Y",
-                 "%d %b %Y", "%b %d, %Y", "%d%m%Y", "%d.%m.%y", "%d/%m/%y", "%d-%m-%y")
+                 "%d %b %Y", "%b %d, %Y", "%d%m%Y", "%d.%m.%y", "%d/%m/%y", "%d-%m-%y",
+                 "%d-%b-%y", "%d-%B %Y")                     # Tally '4-May-26', Namdhari '05-August 2026'
 
 
 def date(value) -> Optional[dt.date]:

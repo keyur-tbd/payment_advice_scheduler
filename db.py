@@ -130,10 +130,27 @@ def connect(env_file: Optional[str] = None):
     if extra:
         dsn += ("&" if "?" in dsn else "?") + "&".join(extra)
     conn = psycopg2.connect(dsn, connect_timeout=30, keepalives=1, keepalives_idle=30)
+    # Autocommit: each mail's writes go out as ONE multi-statement query (see _flush), which
+    # Postgres runs as one implicit transaction - all or nothing, one round trip (~0.4-0.9 s
+    # to the Sydney pooler) instead of BEGIN + statements + COMMIT.
+    conn.autocommit = True
     with conn.cursor() as cur:
         cur.execute("set statement_timeout = '600000'")
-    conn.commit()
     return conn
+
+
+_PENDING: Dict[int, List[bytes]] = {}
+
+
+def _queue(conn, sql) -> None:
+    _PENDING.setdefault(id(conn), []).append(sql if isinstance(sql, bytes) else sql.encode())
+
+
+def _flush(conn) -> None:
+    sql = _PENDING.pop(id(conn), [])
+    if sql:
+        with conn.cursor() as cur:
+            cur.execute(b";\n".join(sql))
 
 
 def apply_schema(conn) -> None:
@@ -159,9 +176,10 @@ def done_mail_ids(conn, feed: str, retry_failed: bool = False) -> set:
 
 
 def mark_mail_done(conn, feed: str, mail: Mail, advices: int) -> None:
+    """Close the mail: its queued advice writes plus the marker, in one transaction."""
     with conn.cursor() as cur:
-        _log(cur, feed, mail, "", -1, "mail_done", f"{advices} advice(s)")
-    conn.commit()
+        _queue(conn, _log_sql(cur, feed, mail, "", -1, "mail_done", f"{advices} advice(s)"))
+    _flush(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -169,9 +187,6 @@ def _row_hash(*parts) -> str:
     return hashlib.sha256("|".join("" if p is None else str(p) for p in parts).encode()).hexdigest()
 
 
-def _log(cur, feed: str, mail: Mail, source_file: str, idx: int, status: str, detail: str = "",
-         advice: Optional[Advice] = None, diff: Optional[float] = None) -> None:
-    cur.execute(_log_sql(cur, feed, mail, source_file, idx, status, detail, advice, diff))
 
 
 def _log_sql(cur, feed: str, mail: Mail, source_file: str, idx: int, status: str, detail: str = "",
@@ -197,8 +212,8 @@ def _log_sql(cur, feed: str, mail: Mail, source_file: str, idx: int, status: str
 
 def log_mail(conn, feed: str, mail: Mail, status: str, detail: str = "", source_file: str = "") -> None:
     with conn.cursor() as cur:
-        _log(cur, feed, mail, source_file, 0, status, detail)
-    conn.commit()
+        _queue(conn, _log_sql(cur, feed, mail, source_file, 0, status, detail))
+    _flush(conn)
 
 
 class RefIndex:
@@ -221,9 +236,9 @@ class RefIndex:
 
 
 def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Optional[RefIndex] = None) -> str:
-    """Write one checked advice in a single round trip (delete + insert + log). Returns the
-    pa_mail_log status. Not committed here: mark_mail_done commits the whole mail, so a run
-    killed mid-mail leaves nothing half-written."""
+    """Queue one checked advice's writes (delete + insert + log). Returns the pa_mail_log
+    status. Nothing is sent here: mark_mail_done sends the whole mail as one transaction, so
+    a run killed mid-mail leaves nothing half-written."""
     status, diff = advice.check()
     cust = CUSTOMERS[advice.customer]
     table = cust.table
@@ -231,7 +246,7 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
     with conn.cursor() as cur:
         if status not in ("ok", "header_only"):
             detail = f"lines sum {advice.line_sum()} vs printed {advice.payment_amount}" if status == "mismatch" else ""
-            _log(cur, feed, mail, advice.source_file, idx, status, detail, advice, diff)
+            _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, status, detail, advice, diff))
             return status
 
         known = refs.get(table)
@@ -240,13 +255,15 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
             mine = FEEDS[feed].priority
             if any(FEEDS[f].priority >= mine for f, _ in others):
                 src = ", ".join(sorted(f"{f}:{m}" for f, m in others))
-                _log(cur, feed, mail, advice.source_file, idx, "duplicate", f"already loaded from {src}", advice, diff)
+                _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, "duplicate",
+                                      f"already loaded from {src}", advice, diff))
                 return "duplicate"
             for f, m in others:          # lower-priority copies give way
-                cur.execute(f"delete from public.{table} where mail_id = %s and advice_ref = %s", (m, advice.advice_ref))
-                cur.execute("update public.pa_mail_log set status = 'superseded', detail = %s "
-                            "where mail_id = %s and advice_ref = %s",
-                            (f"replaced by {feed}:{mail.id}", m, advice.advice_ref))
+                _queue(conn, cur.mogrify(f"delete from public.{table} where mail_id = %s and advice_ref = %s",
+                                         (m, advice.advice_ref)))
+                _queue(conn, cur.mogrify("update public.pa_mail_log set status = 'superseded', detail = %s "
+                                         "where mail_id = %s and advice_ref = %s",
+                                         (f"replaced by {feed}:{mail.id}", m, advice.advice_ref)))
                 known[advice.advice_ref].discard((f, m))
 
         sql = [cur.mogrify(f"delete from public.{table} where mail_id = %s and source_file = %s "
@@ -280,7 +297,8 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
                 + b" on conflict (row_hash) do nothing")
         final = "loaded" if status == "ok" else "header_only"
         sql.append(_log_sql(cur, feed, mail, advice.source_file, idx, final, "", advice, diff))
-        cur.execute(b";\n".join(sql))
+        for part in sql:
+            _queue(conn, part)
         if advice.advice_ref:
             known.setdefault(advice.advice_ref, set()).add((feed, mail.id))
     return final

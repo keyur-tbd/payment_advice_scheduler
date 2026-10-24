@@ -20,6 +20,13 @@ Data FY26-27 with RTV/DN Tracker".
 | `hdfc_corp` | corporatenetbanking.automailer@hdfcbank.bank.in, locked PDF | `pa_magson` (Udaipur, since Aug 2026), `pa_dmart_ecom` |
 | `icici` | ipaycheck@ (icici.bank.in), PDF | `pa_natures_basket`, `pa_spencers` |
 | `hyperpure` | hpvendorsupport@zomato.com replies to our requests | `pa_hyperpure` |
+| `zepto` | payments@zeptonow.com, SAP PDF (2023: pivot PDF) | `pa_zepto` (Zepto Ltd C00043, Kiranakart Wholesale C00155) |
+| `ninjacart` | ninjaping_alerts@ninjacart.com, rolling 2-month GRN snapshot .xlsx | `pa_ninjacart` (63Ideas / Flipkart Quick) |
+| `prr_fresh` | prrfreshproducepvtltd@gmail.com, Tally payment voucher PDF | `pa_prr_fresh` |
+| `namdhari` | erp@namdharis.in, SAP PDF | `pa_namdhari` |
+| `vijetha` | payments@vijetha.in, Tally PDF | `pa_vijetha` |
+| `ratnadeep` | automail@ratnadeepretail.com, voucher PDF | `pa_ratnadeep` |
+| `dorabjee` | MahaPayments@mahabank.co.in, mail body only | `pa_dorabjee` |
 
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
 Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's copy wins
