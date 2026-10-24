@@ -30,25 +30,28 @@ def _line(ref: str, amount: float) -> Line:
     ref = ref.strip()
     body = ref[4:] if ref.upper().startswith(("TDS_", "TDS-")) else ref     # 2023 files: 'TDS-24IAHW001664'
     is_tds = body is not ref
+    gdn_prefix = body.upper().startswith(("GDN-", "GDN_"))                 # 'GDN-25BLR-12345' (2023-26)
+    if gdn_prefix:
+        body = body[4:].rstrip(".")
     m = re.match(r"^(.*?)_([A-Z]+)$", body)
     suffix = m.group(2) if m else ""
     base = m.group(1) if m else body
     is_prn = base.upper().startswith("PRN") or " PRN NO " in f" {base.upper()} "   # 2023: 'BBPUN002 PRN NO 85509'
     if is_tds:
         kind = "TDS"
-    elif suffix == "GDN":
+    elif suffix == "GDN" or gdn_prefix:
         kind = "GDN"
     elif is_prn:
         kind = "PRN"
-    elif suffix:
+    elif suffix or amount < 0:           # negative 'invoice': 2023 'Courier-PRN-...' charges
         kind = "DEDUCTION"
     else:
         kind = "INVOICE"
     return Line(
         invoice_no=None if is_prn or kind == "DEDUCTION" else base,
-        doc_ref=ref if (is_prn or suffix or is_tds) else None,
+        doc_ref=ref if (is_prn or suffix or is_tds or gdn_prefix or kind == "DEDUCTION") else None,
         line_type=kind,
-        description=suffix or None,
+        description=suffix or ("GDN" if gdn_prefix else None),
         net_amount=round(amount, ROUND),
         extra={"bb_reference": ref},
     )
