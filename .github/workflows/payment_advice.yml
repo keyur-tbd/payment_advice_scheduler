@@ -34,6 +34,7 @@ jobs:
       - name: Run feeds
         env:
           PA_GMAIL_TOKEN_JSON: ${{ secrets.PA_GMAIL_TOKEN_JSON }}
+          PA_GMAIL_TOKEN_JSON_INSTAMART: ${{ secrets.PA_GMAIL_TOKEN_JSON_INSTAMART }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           PA_PDF_PASSWORDS: ${{ secrets.PA_PDF_PASSWORDS }}
         run: |

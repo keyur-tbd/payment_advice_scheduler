@@ -229,14 +229,23 @@ def pdf_words(data: bytes, password: Optional[str] = None) -> list:
 # ---------------------------------------------------------------------------
 # Gmail
 # ---------------------------------------------------------------------------
-def gmail_service():
+def gmail_service(mailbox: str = "accounts"):
+    """Read-only Gmail for one mailbox. accounts@: env PA_GMAIL_TOKEN_JSON or token.json.
+    Any other mailbox (instamart@): env PA_GMAIL_TOKEN_JSON_<MAILBOX> (token JSON, used in
+    Actions) or PA_GMAIL_TOKEN_FILE_<MAILBOX> (path to a token file, used locally)."""
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
-    token = os.environ.get("PA_GMAIL_TOKEN_JSON")
+    if mailbox == "accounts":
+        token, path = os.environ.get("PA_GMAIL_TOKEN_JSON"), TOKEN_FILE
+    else:
+        token = os.environ.get(f"PA_GMAIL_TOKEN_JSON_{mailbox.upper()}")
+        path = os.environ.get(f"PA_GMAIL_TOKEN_FILE_{mailbox.upper()}")
+        if not token and not path:
+            raise RuntimeError(f"no Gmail token for {mailbox}@: set PA_GMAIL_TOKEN_JSON_{mailbox.upper()}")
     creds = (Credentials.from_authorized_user_info(json.loads(token)) if token
-             else Credentials.from_authorized_user_file(TOKEN_FILE))
+             else Credentials.from_authorized_user_file(path))
     if not creds.valid:
         creds.refresh(Request())
     return build("gmail", "v1", credentials=creds, cache_discovery=False)

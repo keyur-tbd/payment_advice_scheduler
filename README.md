@@ -27,6 +27,7 @@ Data FY26-27 with RTV/DN Tracker".
 | `vijetha` | payments@vijetha.in, Tally PDF | `pa_vijetha` |
 | `ratnadeep` | automail@ratnadeepretail.com, voucher PDF | `pa_ratnadeep` |
 | `dorabjee` | MahaPayments@mahabank.co.in, mail body only | `pa_dorabjee` |
+| `instamart` | **instamart@** inbox: Zoho Books 'payment success' from message-service@sender.zoho-books.in, PDF | `pa_instamart` (Moksh C00157, Jupiter Kart C00154, Aariga C00196, Setron C00183; Cloudstore/Cloudkart/PJTJ mapped, none mailed yet) |
 
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
 Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's copy wins
@@ -62,3 +63,5 @@ its check this run (see `pa_mail_log where status in ('mismatch','no_total','no_
 2. Add a `Customer` (table) and a `Feed` (query + parser) in `feeds.py`.
 3. Write `parsers/<feed>.py` (`parse(mail) -> list[Advice]`; `raise Skip` for non-advices).
 4. `--dry-run --days 365` until every advice is `loaded`, then `--apply-schema` and run.
+
+The `instamart` feed reads a second mailbox: secret `PA_GMAIL_TOKEN_JSON_INSTAMART` (locally `PA_GMAIL_TOKEN_FILE_INSTAMART=<path to token>`). Without it that feed is skipped and the rest run.

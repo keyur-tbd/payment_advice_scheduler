@@ -48,6 +48,8 @@ CUSTOMERS: Dict[str, Customer] = {
     "vijetha":        Customer("pa_vijetha",        ("C00075",), "Vijetha Supermarkets"),
     "ratnadeep":      Customer("pa_ratnadeep",      ("C00033",), "Ratnadeep Retail"),
     "dorabjee":       Customer("pa_dorabjee",       ("C00011",), "Dorabjee & Co (Bank of Maharashtra advices)"),
+    "instamart":      Customer("pa_instamart",      ("C00152", "C00153", "C00154", "C00156", "C00157", "C00196", "C00183"),
+                               "Swiggy Instamart payers (Cloudstore, Cloudkart, Jupiter Kart, PJTJ, Moksh, Aariga, Setron)"),
 }
 
 
@@ -56,6 +58,7 @@ class Feed:
     query: str                      # Gmail query; the runner adds the date window
     parser: str                     # module in parsers/ exposing parse(mail) -> list[Advice]
     priority: int = 10              # higher wins when two feeds carry the same advice_ref
+    mailbox: str = "accounts"       # which @thebakersdozen.in inbox (see pa_common.gmail_service)
 
     def load_parser(self) -> Callable:
         return importlib.import_module(f"parsers.{self.parser}").parse
@@ -97,4 +100,6 @@ FEEDS: Dict[str, Feed] = {
         "from:automail@ratnadeepretail.com has:attachment", "ratnadeep"),
     "dorabjee": Feed(   # body-only bank advice, no attachment
         "from:(MahaPayments@mahabank.co.in OR mahapayments@mahabank.bank.in) subject:\"Payment Advice\"", "dorabjee"),
+    "instamart": Feed(   # Zoho Books payment vouchers, mailed to instamart@ (not accounts@)
+        "from:message-service@sender.zoho-books.in subject:\"payment success\"", "instamart", mailbox="instamart"),
 }

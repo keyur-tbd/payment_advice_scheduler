@@ -158,14 +158,23 @@ def main() -> int:
             if args.feeds == list(FEEDS) and not args.since and "--days" not in sys.argv:
                 return 0
     after = args.since or (dt.date.today() - dt.timedelta(days=args.days))
-    svc = gmail_service()
+    services = {}                     # one Gmail client per mailbox, opened when first needed
     refs = None
     if conn is not None:
         import db
         refs = db.RefIndex(conn)      # one index for the run: ril_rr and axis share pa_reliance
     total = Counter()
     for name in args.feeds:
-        total += run_feed(name, svc, conn, after, args, refs)
+        box = FEEDS[name].mailbox
+        if box not in services:
+            try:
+                services[box] = gmail_service(box)
+            except RuntimeError as exc:          # mailbox token not configured: the other feeds still run
+                services[box] = None
+                print(f"\n[{name}] not run: {exc}")
+        if services[box] is None:
+            continue
+        total += run_feed(name, services[box], conn, after, args, refs)
     failed = sum(total[k] for k in ("mismatch", "no_total", "no_lines", "error"))
     print(f"\nTOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(total.items())))
     return 1 if failed and not args.dry_run else 0
