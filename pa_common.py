@@ -63,6 +63,7 @@ class Line:
     invoice_date: Optional[dt.date] = None
     doc_ref: Optional[str] = None          # payer's own doc no: GRN, PRN, SAP doc, scroll no
     line_type: str = "INVOICE"             # INVOICE / TDS / GDN / PRN / DEBIT_NOTE / CREDIT_NOTE / GST_HOLD / GST_RELEASE / DEDUCTION / OTHER
+                                           # PAYMENT = header-only advice; ROUND_OFF = added by db.load_advice (printed total less parsed lines)
     description: Optional[str] = None
     gross_amount: Optional[float] = None
     tds_amount: Optional[float] = None
@@ -88,7 +89,9 @@ class Advice:
         return round(sum(l.net_amount or 0.0 for l in self.lines), 2)
 
     def check(self) -> tuple[str, Optional[float]]:
-        """('ok' | 'header_only' | 'mismatch' | 'no_total' | 'no_lines', diff)."""
+        """('ok' | 'header_only' | 'mismatch' | 'no_total' | 'no_lines', diff).
+        Classification only. Since 2026-10-26 (user decision) mismatch and no_total still load:
+        db.load_advice adds a ROUND_OFF line for a mismatch and loads a no_total advice unchecked."""
         if self.payment_amount is None:
             return "no_total", None
         if self.header_only:

@@ -2,9 +2,12 @@
 
 Customer payment advices mailed to **accounts@thebakersdozen.in** -> one Supabase table per
 customer (`public.pa_<customer>`), one row per advice line. Parsed locally (pdfplumber /
-openpyxl / BeautifulSoup) - **no LlamaIndex, no LLM**. An advice is loaded only when its lines
-add up to the amount the payer printed (within Rs 1); anything else stays out and is listed in
-`pa_mail_log` with the reason.
+openpyxl / BeautifulSoup) - **no LlamaIndex, no LLM**. Every advice with lines is loaded and
+`pa_mail_log.status` says how much to trust it: `loaded` = the lines add up to the amount the
+payer printed (within Rs 1); `loaded_round_off` = they did not, so a `ROUND_OFF` line was added to
+bring them to the printed total (review pending, decision 2026-10-26); `loaded_no_total` = the
+payer printed no total, lines loaded unchecked with `payment_amount` null. Only `no_lines` /
+`error` stay out.
 
 Customer list and senders come from the *Raw Cust Data* tab of "Customer Receipt Settlement
 Data FY26-27 with RTV/DN Tracker".
@@ -36,8 +39,9 @@ Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's c
 ## Columns (every `pa_*` table)
 `advice_ref`, `utr`, `payment_date`, `payment_amount` (printed total) repeat on each line;
 `invoice_no`, `invoice_date`, `doc_ref` (GRN / PRN / payer doc), `line_type`
-(INVOICE / TDS / GDN / PRN / DEDUCTION / GST_HOLD / PAYMENT ...), `gross_amount`, `tds_amount`,
-`deduction_amount`, `net_amount` (signed: `sum(net_amount) = payment_amount` per advice),
+(INVOICE / TDS / GDN / PRN / DEDUCTION / GST_HOLD / PAYMENT / ROUND_OFF ...), `gross_amount`, `tds_amount`,
+`deduction_amount`, `net_amount` (signed: `sum(net_amount) = payment_amount` per advice, ROUND_OFF
+included, wherever `payment_amount` is not null),
 plus `mail_id`, `mail_date`, `source_file`, `raw_data`.
 
 ## Run
@@ -48,8 +52,15 @@ python run.py --feeds axis --since 2026-04-01
 python run.py --feeds hdfc_enet --days 365 --dry-run --cache .cache   # test a parser, no DB
 python run.py --retry-failed                       # re-read advices that failed their check
 ```
-Mails already settled in `pa_mail_log` are not fetched again. Exit code 1 = some advice failed
-its check this run (see `pa_mail_log where status in ('mismatch','no_total','no_lines','error')`).
+Mails already settled in `pa_mail_log` are not fetched again. Exit code 1 = some advice could not
+be loaded this run (`pa_mail_log where status in ('no_lines','error')`).
+
+What is loaded but still needs a decision:
+```sql
+select feed, status, count(*) advices, round(sum(abs(diff))) rupees_rounded_off
+from pa_mail_log where status in ('loaded_round_off','loaded_no_total') group by 1,2 order by 1,2;
+select * from pa_zepto where line_type = 'ROUND_OFF' order by abs(net_amount) desc;   -- any pa_* table
+```
 
 ## Secrets / local setup
 * `token.json` - Gmail read-only token for accounts@ (`python gmail_auth.py`; signs in once).

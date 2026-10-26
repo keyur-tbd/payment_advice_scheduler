@@ -53,8 +53,10 @@ create table if not exists public.{table} (
     loaded_at        timestamptz not null default now()
 );
 comment on table public.{table} is
-    'Payment advice lines, one row per line, parsed locally (no LLM) from accounts@ mail; '
-    'an advice loads only when its lines add up to the printed payment amount. See pa_mail_log.';
+    'Payment advice lines, one row per line, parsed locally (no LLM) from accounts@ / instamart@ mail. '
+    'Lines that add up to the printed total load as-is; a mismatch loads with an extra ROUND_OFF line '
+    '(net_amount = printed total less parsed lines, pending review); an advice with no printed total loads '
+    'unchecked with payment_amount null. See pa_mail_log.status.';
 comment on column public.{table}.net_amount is
     'signed amount this line adds to the payment: invoices +, TDS / GDN / PRN / holds -';
 create index if not exists {table}_advice_ref_idx   on public.{table} (advice_ref);
@@ -89,9 +91,12 @@ create table if not exists public.pa_mail_log (
 );
 comment on table public.pa_mail_log is
     'One row per payment advice (or skipped mail) the pipeline looked at. status: loaded / header_only = in the '
-    'customer table; duplicate / superseded = same advice_ref came from another copy; mismatch / no_total / '
-    'no_lines / error = NOT loaded, needs a parser fix; skipped = not an advice (ticket, chatter); '
-    'mail_done (advice_idx -1) = every advice in the mail was handled.';
+    'customer table, lines add up to the printed total; loaded_round_off = in the table with a ROUND_OFF line '
+    'absorbing the difference (diff = parsed lines less printed total; review pending); loaded_no_total = in the '
+    'table unchecked, payer printed no total (payment_amount null); duplicate / superseded = same advice_ref came '
+    'from another copy; no_lines / error = NOT loaded, needs a parser fix; skipped = not an advice (ticket, '
+    'chatter); mail_done (advice_idx -1) = every advice in the mail was handled. mismatch / no_total were the '
+    'not-loaded states before 2026-10-26.';
 create index if not exists pa_mail_log_status_idx on public.pa_mail_log (status);
 alter table public.pa_mail_log enable row level security;
 revoke insert, update, delete, truncate, references, trigger on public.pa_mail_log from anon, authenticated;
@@ -159,7 +164,8 @@ def apply_schema(conn) -> None:
     conn.commit()
 
 
-FAILED = ("mismatch", "no_total", "no_lines", "error")
+FAILED = ("mismatch", "no_total", "no_lines", "error")      # mismatch / no_total: rows from before 2026-10-26
+LOADED = ("loaded", "header_only", "loaded_round_off", "loaded_no_total")
 
 
 def done_mail_ids(conn, feed: str, retry_failed: bool = False) -> set:
@@ -244,10 +250,16 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
     table = cust.table
     refs = refs or RefIndex(conn)
     with conn.cursor() as cur:
-        if status not in ("ok", "header_only"):
-            detail = f"lines sum {advice.line_sum()} vs printed {advice.payment_amount}" if status == "mismatch" else ""
-            _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, status, detail, advice, diff))
+        if status == "no_lines":
+            _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, status, "", advice, diff))
             return status
+        # 2026-10-26 (user): nothing with lines stays out. A mismatch loads with a ROUND_OFF line that
+        # brings the lines to the printed total; an advice with no printed total loads unchecked.
+        detail = ""
+        if status == "mismatch":
+            detail = f"lines sum {advice.line_sum()} vs printed {advice.payment_amount}; ROUND_OFF {round(-diff, 2)} added"
+        elif status == "no_total":
+            detail = "no printed total; lines loaded unchecked"
 
         known = refs.get(table)
         if advice.advice_ref:
@@ -274,6 +286,11 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
             from pa_common import Line
             lines = [Line(line_type="PAYMENT", net_amount=advice.payment_amount,
                           description=advice.extra.get("narration"))]
+        elif status == "mismatch":
+            from pa_common import Line
+            lines = advice.lines + [Line(
+                line_type="ROUND_OFF", net_amount=round(-diff, 2),
+                description=f"printed total {advice.payment_amount} less parsed lines {advice.line_sum()}")]
         code = cust.codes[0] if len(cust.codes) == 1 else advice.extra.get("customer_code")
         values = []
         for n, l in enumerate(lines, start=1):
@@ -295,8 +312,9 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
                     values """.encode()
                 + b",".join(cur.mogrify(placeholder, v) for v in values[start:start + 500])
                 + b" on conflict (row_hash) do nothing")
-        final = "loaded" if status == "ok" else "header_only"
-        sql.append(_log_sql(cur, feed, mail, advice.source_file, idx, final, "", advice, diff))
+        final = {"ok": "loaded", "header_only": "header_only",
+                 "mismatch": "loaded_round_off", "no_total": "loaded_no_total"}[status]
+        sql.append(_log_sql(cur, feed, mail, advice.source_file, idx, final, detail, advice, diff))
         for part in sql:
             _queue(conn, part)
         if advice.advice_ref:
@@ -315,7 +333,7 @@ def log_run(conn, feed: str, started: dt.datetime, ended: dt.datetime, counts: D
                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (f"pa_{feed}", "Payment advice: mail to Supabase", started, ended, round(secs, 1),
              f"{int(secs // 60)}m {int(secs % 60)}s",
-             counts.get("loaded", 0) + counts.get("header_only", 0), sum(counts.values()), failed,
+             sum(counts.get(k, 0) for k in LOADED), sum(counts.values()), failed,
              counts.get("skipped", 0) + counts.get("duplicate", 0),
              "Success" if failed == 0 else "Partial", json.dumps({"counts": counts, **details})))
     conn.commit()

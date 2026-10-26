@@ -84,13 +84,13 @@ def run_feed(name: str, svc, conn, after: dt.date, args, refs=None) -> Counter:
         for idx, advice in enumerate(advices):
             status, diff = advice.check()
             if args.dry_run or conn is None:
-                final = status if status != "ok" else "loaded"
+                final = {"ok": "loaded", "mismatch": "loaded_round_off", "no_total": "loaded_no_total"}.get(status, status)
             else:
                 import db
                 final = db.load_advice(conn, name, mail, idx, advice, refs)
             counts[final] += 1
             per_customer[advice.customer][final] += 1
-            if final in ("mismatch", "no_total", "no_lines"):
+            if final in ("loaded_round_off", "loaded_no_total", "no_lines"):   # loaded, but flagged for review
                 problems.append((mail.id, mail.subject[:70], final,
                                  f"{advice.source_file}: lines {advice.line_sum()} vs printed {advice.payment_amount}"
                                  f" ({len(advice.lines)} lines)"))
