@@ -99,8 +99,10 @@ class Advice:
         if not self.lines:
             return "no_lines", None
         diff = round(self.line_sum() - self.payment_amount, 2)
-        # payers round each line, so a long advice drifts a little; never more than Rs 2
-        tol = min(2.0, max(TOLERANCE, 0.1 * len(self.lines)))
+        # payers round each line, so a long advice drifts a little; never more than Rs 2.
+        # A parser may set extra['tolerance'] when the document prints at coarser precision
+        # (Zepto's 2023 pivot prints whole rupees: Rs 0.5 per row).
+        tol = self.extra.get("tolerance") or min(2.0, max(TOLERANCE, 0.1 * len(self.lines)))
         return ("ok" if abs(diff) <= tol else "mismatch"), diff
 
 

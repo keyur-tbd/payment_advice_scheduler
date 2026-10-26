@@ -128,7 +128,8 @@ def main() -> int:
     ap.add_argument("--before", type=dt.date.fromisoformat)
     ap.add_argument("--dry-run", action="store_true", help="parse + check only, no database")
     ap.add_argument("--reparse", action="store_true", help="ignore pa_mail_log and re-read every mail in the window")
-    ap.add_argument("--retry-failed", action="store_true", help="re-read mails whose advice failed its check")
+    ap.add_argument("--retry-failed", action="store_true",
+                    help="re-read mails whose advices failed, were rounded off or had no printed total")
     ap.add_argument("--cache", help="directory to cache raw mails in (testing)")
     ap.add_argument("--dump", help="write parsed advices to this JSON file")
     ap.add_argument("--limit", type=int, default=0)

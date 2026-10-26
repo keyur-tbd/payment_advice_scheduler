@@ -50,7 +50,7 @@ python run.py --apply-schema                       # create/update tables (idemp
 python run.py                                      # all feeds, last 60 days
 python run.py --feeds axis --since 2026-04-01
 python run.py --feeds hdfc_enet --days 365 --dry-run --cache .cache   # test a parser, no DB
-python run.py --retry-failed                       # re-read advices that failed their check
+python run.py --retry-failed                       # re-read failed / rounded-off / untotalled advices (after a parser fix)
 ```
 Mails already settled in `pa_mail_log` are not fetched again. Exit code 1 = some advice could not
 be loaded this run (`pa_mail_log where status in ('no_lines','error')`).

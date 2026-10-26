@@ -166,18 +166,19 @@ def apply_schema(conn) -> None:
 
 FAILED = ("mismatch", "no_total", "no_lines", "error")      # mismatch / no_total: rows from before 2026-10-26
 LOADED = ("loaded", "header_only", "loaded_round_off", "loaded_no_total")
+RETRY = FAILED + ("loaded_round_off", "loaded_no_total")    # what --retry-failed reads again (a parser fix may improve them)
 
 
 def done_mail_ids(conn, feed: str, retry_failed: bool = False) -> set:
     """Mails this feed finished: a 'mail_done' marker (written after every advice in the
     mail was handled, so a run killed mid-mail re-reads it) or a skip/error row.
-    With retry_failed, mails holding any failed advice are read again."""
+    With retry_failed, mails holding any failed, rounded-off or untotalled advice are read again."""
     with conn.cursor() as cur:
         cur.execute("""select mail_id from public.pa_mail_log where feed = %s
                        group by mail_id
                        having bool_or(status in ('mail_done', 'skipped', 'error'))
                           and not (%s and bool_or(status = any(%s)))""",
-                    (feed, retry_failed, list(FAILED)))
+                    (feed, retry_failed, list(RETRY)))
         return {r[0] for r in cur.fetchall()}
 
 
