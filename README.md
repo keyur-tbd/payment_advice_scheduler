@@ -31,6 +31,10 @@ Data FY26-27 with RTV/DN Tracker".
 | `ratnadeep` | automail@ratnadeepretail.com, voucher PDF | `pa_ratnadeep` |
 | `dorabjee` | MahaPayments@mahabank.co.in, mail body only | `pa_dorabjee` |
 | `instamart` | **instamart@** inbox: Zoho Books 'payment success' from message-service@sender.zoho-books.in, PDF | `pa_instamart` (Moksh C00157, Jupiter Kart C00154, Aariga C00196, Setron C00183; Cloudstore/Cloudkart/PJTJ mapped, none mailed yet) |
+| `hsbc` | advising.service@advising.hsbc.com, Payment_Advice.pdf (multi-page) | `pa_flipkart` (Flipkart India C00048, since Sep 2023); Zepto / Kiranakart copies skipped - `pa_zepto` has them |
+| `jpmorgan` | statements_and_alerts@jpmchase.com, mail body (zip repeats it) | `pa_compass` (C00459), `pa_bottle_lab` (C00503) |
+| `benzer` | account@benzerworld.com, Tally payment voucher PDF (PRR Fresh parser) | `pa_benzer` (C00113) |
+| `shri_balaji` | message-service@sender.zoho-inventory.in, Zoho Inventory PDF | `pa_shri_balaji` (C00509, since Feb 2026) |
 
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
 Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's copy wins

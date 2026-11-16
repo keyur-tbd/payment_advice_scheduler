@@ -50,6 +50,12 @@ CUSTOMERS: Dict[str, Customer] = {
     "dorabjee":       Customer("pa_dorabjee",       ("C00011",), "Dorabjee & Co (Bank of Maharashtra advices)"),
     "instamart":      Customer("pa_instamart",      ("C00152", "C00153", "C00154", "C00156", "C00157", "C00196", "C00183"),
                                "Swiggy Instamart payers (Cloudstore, Cloudkart, Jupiter Kart, PJTJ, Moksh, Aariga, Setron)"),
+    # added 2026-11-16 after an inbox sweep found advice senders no feed read
+    "flipkart":       Customer("pa_flipkart",       ("C00048",), "Flipkart India (HSBC advices)"),
+    "shri_balaji":    Customer("pa_shri_balaji",    ("C00509",), "Shri Balaji Fruits (Zoho Inventory)"),
+    "benzer":         Customer("pa_benzer",         ("C00113",), "Benzer Department Store (Tally voucher)"),
+    "compass":        Customer("pa_compass",        ("C00459",), "Compass India Food Services (J.P. Morgan advices)"),
+    "bottle_lab":     Customer("pa_bottle_lab",     ("C00503",), "Bottle Lab Technologies (J.P. Morgan advices)"),
 }
 
 
@@ -59,6 +65,8 @@ class Feed:
     parser: str                     # module in parsers/ exposing parse(mail) -> list[Advice]
     priority: int = 10              # higher wins when two feeds carry the same advice_ref
     mailbox: str = "accounts"       # which @thebakersdozen.in inbox (see pa_common.gmail_service)
+    merge_repeats: bool = False     # same advice_ref again from this feed: add the lines earlier mails lacked
+                                    # (statements that repeat a transfer as it fills in; see db.load_advice)
 
     def load_parser(self) -> Callable:
         return importlib.import_module(f"parsers.{self.parser}").parse
@@ -102,4 +110,15 @@ FEEDS: Dict[str, Feed] = {
         "from:(MahaPayments@mahabank.co.in OR mahapayments@mahabank.bank.in) subject:\"Payment Advice\"", "dorabjee"),
     "instamart": Feed(   # Zoho Books payment vouchers, mailed to instamart@ (not accounts@)
         "from:message-service@sender.zoho-books.in subject:\"payment success\"", "instamart", mailbox="instamart"),
+    "instamart_vcredits": Feed(   # Instamart entities' 'Payment Receipts VCredits.xlsx' (2024 on); below the
+        "filename:VCredits", "instamart_vcredits",   # Zoho Books advices, which carry a printed total
+        priority=5, mailbox="instamart", merge_repeats=True),
+    "hsbc": Feed(        # Flipkart India; Zepto / Kiranakart copies skipped (pa_zepto has them)
+        "from:advising.service@advising.hsbc.com subject:\"Payment Advice\" has:attachment", "hsbc"),
+    "jpmorgan": Feed(    # Compass India, Bottle Lab; advice in the body
+        "from:statements_and_alerts@jpmchase.com subject:\"Remittance Advice\"", "jpmorgan"),
+    "benzer": Feed(
+        "from:account@benzerworld.com has:attachment", "benzer"),
+    "shri_balaji": Feed(  # Zoho Inventory (the Instamart payers use Zoho Books, to instamart@)
+        "from:message-service@sender.zoho-inventory.in subject:\"payment has been made\"", "shri_balaji"),
 }

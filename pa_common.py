@@ -183,6 +183,23 @@ def html_to_text(html: str) -> str:
     return BeautifulSoup(html, "html.parser").get_text("\n")
 
 
+_OUR_INV = re.compile(r"(\d{2})-?([A-Za-z]{3})-*(\d{4,6})")
+
+
+def our_invoice_no(ref: Optional[str], tail: bool = False) -> Optional[str]:
+    """Payers retype our invoice numbers: '27GUR02831', '27gur-01946', '27GUR--00970', '27-MUM-07563'
+    -> '27GUR-02831'. tail=True also finds one at the end of a longer narration
+    ('20250726290044126BLR05948' -> '26BLR-05948'). None when there is none."""
+    if not ref:
+        return None
+    s = ref.strip()
+    if tail:
+        m = re.search(r"(?<![A-Za-z])" + _OUR_INV.pattern + r"$", s)
+    else:
+        m = _OUR_INV.fullmatch(s)
+    return f"{m.group(1)}{m.group(2).upper()}-{m.group(3)}" if m else None
+
+
 def squash(text: str) -> str:
     """Collapse runs of spaces and blank lines; keep one line per visual line."""
     text = text.replace("\xa0", " ")

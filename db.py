@@ -9,10 +9,12 @@ replaced by (mail_id, source_file, advice_ref) inside one transaction.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import hashlib
 import json
 import os
+from collections import Counter
 from typing import Dict, Iterable, List, Optional
 
 from feeds import CUSTOMERS, FEEDS
@@ -263,9 +265,35 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
             detail = "no printed total; lines loaded unchecked"
 
         known = refs.get(table)
+        merged = False
         if advice.advice_ref:
             others = {(f, m) for f, m in known.get(advice.advice_ref, set()) if m != mail.id}
             mine = FEEDS[feed].priority
+            if (FEEDS[feed].merge_repeats and others and status == "ok"
+                    and all(FEEDS[f].priority == mine for f, _ in others)):
+                # Statements that repeat a transfer as it fills in (Instamart VCredits): add only the lines
+                # the earlier mails did not carry (matched on invoice / doc ref + amount), then restate the
+                # transfer's total on all its rows. An identical repeat adds nothing and logs 'duplicate'.
+                cur.execute(f"select invoice_no, doc_ref, net_amount from public.{table} "
+                            f"where advice_ref = %s and mail_id <> %s", (advice.advice_ref, mail.id))
+                have = Counter((i, d, round(float(n or 0), 2)) for i, d, n in cur.fetchall())
+                new = []
+                for ln in advice.lines:
+                    k = (ln.invoice_no, ln.doc_ref, round(ln.net_amount or 0, 2))
+                    if have[k] > 0:
+                        have[k] -= 1
+                    else:
+                        new.append(ln)
+                src = ", ".join(sorted(f"{f}:{m}" for f, m in others))
+                if not new:
+                    _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, "duplicate",
+                                          f"already loaded from {src}", advice, diff))
+                    return "duplicate"
+                advice = dataclasses.replace(advice, lines=new, payment_amount=round(sum(l.net_amount or 0 for l in new), 2))
+                status, diff = advice.check()
+                detail = f"merged {len(new)} new line(s) into the transfer also in {src}"
+                merged = True
+                others = set()
             if any(FEEDS[f].priority >= mine for f, _ in others):
                 src = ", ".join(sorted(f"{f}:{m}" for f, m in others))
                 _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, "duplicate",
@@ -315,6 +343,10 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
                 + b" on conflict (row_hash) do nothing")
         final = {"ok": "loaded", "header_only": "header_only",
                  "mismatch": "loaded_round_off", "no_total": "loaded_no_total"}[status]
+        if merged:                       # the transfer's total = all its rows, whichever mail brought them
+            sql.append(cur.mogrify(f"update public.{table} set payment_amount = t.total from "
+                                   f"(select sum(net_amount) total from public.{table} where advice_ref = %s) t "
+                                   f"where advice_ref = %s", (advice.advice_ref, advice.advice_ref)))
         sql.append(_log_sql(cur, feed, mail, advice.source_file, idx, final, detail, advice, diff))
         for part in sql:
             _queue(conn, part)

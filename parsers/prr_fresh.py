@@ -23,13 +23,15 @@ ROW_RE = re.compile(r"^(Agst Ref|New Ref|Advance|On Account)\s+(?:(.*?)\s+)?(" +
 OUR_INVOICE = re.compile(r"^\d{2}[A-Z]{3}-\d+")
 
 
-def parse_text(text: str, source_file: str) -> Advice:
+def parse_text(text: str, source_file: str, customer: str = "prr_fresh",
+               payer_name: str = "PRR Fresh Produce Pvt Ltd") -> Advice:
+    """Any TallyPrime payment voucher made out to us; Benzer (parsers/benzer.py) reuses it."""
     if "Payment Voucher" not in text:
         raise Skip("not a payment voucher")
     no = re.search(r"No\.\s*:\s*(\S+)\s+Dated\s*:\s*(\S+)", text)
     party = re.search(r"^MIMANSA INDUSTRIES.*?(" + _N + r")\s*$", text, re.M | re.I)
     utr = re.search(r"On Account of\s*:\s*(?:NEFT|RTGS|IMPS|UPI)?/?([A-Z0-9]{10,})", text, re.S)
-    adv = Advice(customer="prr_fresh", payer_name="PRR Fresh Produce Pvt Ltd",
+    adv = Advice(customer=customer, payer_name=payer_name,
                  advice_ref=no.group(1) if no else None, utr=utr.group(1) if utr else None,
                  payment_date=date(no.group(2)) if no else None,
                  payment_amount=num(party.group(1)) if party else None, source_file=source_file)
@@ -37,7 +39,7 @@ def parse_text(text: str, source_file: str) -> Advice:
         m = ROW_RE.match(s)
         if not m:
             continue
-        ref, amt = (m.group(2) or "").strip(), num(m.group(3))         # 'On Account 560.516 Dr' has no ref
+        ref, amt = (m.group(2) or "").strip().lstrip("‘’'`"), num(m.group(3))         # 'On Account 560.516 Dr' has no ref
         net = amt if m.group(4) == "Dr" else -amt
         ours = bool(OUR_INVOICE.match(ref))
         adv.lines.append(Line(invoice_no=ref if ours else None, doc_ref=None if ours else (ref or m.group(1)),
