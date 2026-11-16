@@ -81,8 +81,8 @@ def parse_text(text: str, source_file: str) -> Advice:
             pending = None
             continue
         tail = last is not None and " " not in s and (
-            s.startswith("_") or (wrapped and re.fullmatch(r"[A-Z0-9]{1,6}", s)))
-        if tail:                     # '_QD' / 'QD' (after '26BLR-04947_') / '00093' (after 'AK052600000')
+            s.startswith("_") or (wrapped and re.fullmatch(r"(?:[A-Z0-9]{1,6}|[0-9][A-Z0-9_]{0,7})", s)))
+        if tail:                     # '_QD' / 'QD' (after '26BLR-04947_') / '3_QD' (after '26MUM-1603') / '00093'
             ref = (last.extra.get("ref_doc") or "") + s
             last.extra["ref_doc"] = ref
             if "_" in ref:
