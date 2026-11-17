@@ -176,6 +176,11 @@ def main() -> int:
         if services[box] is None:
             continue
         total += run_feed(name, services[box], conn, after, args, refs)
+    if conn is not None and services.get("instamart") is not None and \
+            any(FEEDS[f].mailbox == "instamart" for f in args.feeds):
+        rows, advices = db.drop_unkeyed_duplicates(conn)
+        print(f"\n[instamart] {rows} undated VCredits payment row(s) in {advices} advice(s) were copies of rows "
+              f"under another advice ref: dropped")
     failed = sum(total[k] for k in ("mismatch", "no_total", "no_lines", "error"))
     print(f"\nTOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(total.items())))
     return 1 if failed and not args.dry_run else 0

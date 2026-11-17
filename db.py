@@ -355,6 +355,52 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
     return final
 
 
+# Instamart VCredits rows with no UTR are keyed by entity + vendor code + date, so the same payment can sit under
+# that key AND under its UTR (the Zoho Books advice, or another VCredits file that printed the UTR), or under two
+# date keys. Measured 2026-11-17: 418 such rows, Rs 2.6 Cr counted twice. A row of an undated-key advice is a copy
+# when the same invoice / doc ref and amount is paid within 5 days under another advice_ref; the UTR copy is kept,
+# else the earliest. Runs after every load, so the order the mails arrive in does not matter.
+UNKEYED_DUPES_SQL = """
+create temp table pa_dup as
+select d.row_hash, d.advice_ref, k.keeper
+  from public.pa_instamart d
+  cross join lateral (
+    select o.advice_ref as keeper
+      from public.pa_instamart o
+     where o.advice_ref <> d.advice_ref
+       and coalesce(o.invoice_no, o.doc_ref) = coalesce(d.invoice_no, d.doc_ref)
+       and abs(o.net_amount - d.net_amount) < 0.01
+       and abs(o.payment_date - d.payment_date) <= 5
+       and (o.utr is not null or (o.payment_date, o.advice_ref) < (d.payment_date, d.advice_ref))
+     order by (o.utr is null), o.payment_date, o.advice_ref
+     limit 1) k
+ where d.feed = 'instamart_vcredits' and d.utr is null and coalesce(d.invoice_no, d.doc_ref) is not null;
+delete from public.pa_instamart t using pa_dup d where t.row_hash = d.row_hash;
+update public.pa_instamart t set payment_amount = s.total
+  from (select advice_ref, round(sum(net_amount), 2) as total from public.pa_instamart
+         where advice_ref in (select advice_ref from pa_dup) group by 1) s
+ where t.advice_ref = s.advice_ref;
+update public.pa_mail_log g
+   set status = case when exists (select 1 from public.pa_instamart t where t.advice_ref = x.advice_ref)
+                     then g.status else 'duplicate' end,
+       detail = concat_ws('; ', nullif(g.detail, ''),
+                          x.n || ' payment row(s) dropped, also under ' || x.keepers)
+  from (select advice_ref, count(*) n, string_agg(distinct keeper, ', ') keepers from pa_dup group by 1) x
+ where g.feed = 'instamart_vcredits' and g.advice_ref = x.advice_ref
+   and g.status in ('loaded', 'header_only', 'loaded_round_off', 'loaded_no_total');
+select count(*), count(distinct advice_ref) from pa_dup;
+"""
+
+
+def drop_unkeyed_duplicates(conn) -> tuple:
+    """Remove VCredits payment rows that are copies of a row under another advice_ref; returns (rows, advices)."""
+    with conn.cursor() as cur:
+        cur.execute(UNKEYED_DUPES_SQL)      # one string = one implicit transaction; returns the last select
+        rows, advices = cur.fetchone()
+        cur.execute("drop table pa_dup")
+    return rows, advices
+
+
 def log_run(conn, feed: str, started: dt.datetime, ended: dt.datetime, counts: Dict[str, int],
             details: dict) -> None:
     failed = sum(counts.get(k, 0) for k in FAILED)

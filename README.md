@@ -31,6 +31,7 @@ Data FY26-27 with RTV/DN Tracker".
 | `ratnadeep` | automail@ratnadeepretail.com, voucher PDF | `pa_ratnadeep` |
 | `dorabjee` | MahaPayments@mahabank.co.in, mail body only | `pa_dorabjee` |
 | `instamart` | **instamart@** inbox: Zoho Books 'payment success' from message-service@sender.zoho-books.in, PDF | `pa_instamart` (Moksh C00157, Jupiter Kart C00154, Aariga C00196, Setron C00183; Cloudstore/Cloudkart/PJTJ mapped, none mailed yet) |
+| `instamart_vcredits` | **instamart@** inbox: 'Payment Receipts VCredits.xlsx' (query `filename:VCredits`), one mail per Instamart entity x our vendor code | `pa_instamart`, one advice per UTR (blank UTR: `<ENTITY>-<vendor code>-<yyyymmdd>`); payment_amount = sum of the rows we hold (no printed total); priority below `instamart` |
 | `hsbc` | advising.service@advising.hsbc.com, Payment_Advice.pdf (multi-page) | `pa_flipkart` (Flipkart India C00048, since Sep 2023); Zepto / Kiranakart copies skipped - `pa_zepto` has them |
 | `jpmorgan` | statements_and_alerts@jpmchase.com, mail body (zip repeats it) | `pa_compass` (C00459), `pa_bottle_lab` (C00503) |
 | `benzer` | account@benzerworld.com, Tally payment voucher PDF (PRR Fresh parser) | `pa_benzer` (C00113) |
@@ -39,6 +40,15 @@ Data FY26-27 with RTV/DN Tracker".
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
 Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's copy wins
 (`feeds.py`), the other is logged `duplicate` / `superseded`.
+
+VCredits rows with no UTR can repeat a payment that is also under its UTR (or under another date key).
+After every run that reads instamart@, `db.drop_unkeyed_duplicates` deletes such a row when the same
+invoice / doc ref and amount is paid within 5 days under another advice_ref (the UTR copy is kept, else
+the earliest), restates the advice's total and notes it in `pa_mail_log.detail` (`duplicate` when
+nothing is left).
+
+A VCredits mail covers only the vendor codes copied to instamart@; one bank transfer pays all of an
+entity's vendor codes, so many VCredits totals are a part of the ERP receipt and do not match it by amount.
 
 ## Columns (every `pa_*` table)
 `advice_ref`, `utr`, `payment_date`, `payment_amount` (printed total) repeat on each line;
