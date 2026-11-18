@@ -44,7 +44,7 @@ Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's c
 
 VCredits rows with no UTR can repeat a payment that is also under its UTR (or under another date key).
 After every run that reads instamart@, `db.drop_unkeyed_duplicates` deletes such a row when the same
-invoice / doc ref and amount is paid within 5 days under another advice_ref (the UTR copy is kept, else
+invoice / doc ref and amount is paid within 30 days under another advice_ref (the UTR copy is kept, else
 the earliest), restates the advice's total and notes it in `pa_mail_log.detail` (`duplicate` when
 nothing is left).
 

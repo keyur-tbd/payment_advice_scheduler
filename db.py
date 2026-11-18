@@ -358,7 +358,8 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
 # Instamart VCredits rows with no UTR are keyed by entity + vendor code + date (Zoho Books ones with no UTR by
 # 'ZOHO-<id>'), so the same payment can sit under that key AND under its UTR (Zoho Books, another VCredits file
 # that printed the UTR, the vendor portal export), or under two date keys. Measured 2026-11-17: 418 such rows, Rs 2.6 Cr counted twice. A row of an undated-key advice is a copy
-# when the same invoice / doc ref and amount is paid within 5 days under another advice_ref; the UTR copy is kept,
+# when the same invoice / doc ref and amount is paid within 30 days under another advice_ref (VCredits
+# dates can run 10-16 days ahead of the portal's payment date); the UTR copy is kept,
 # else the earliest. Runs after every load, so the order the mails arrive in does not matter.
 UNKEYED_DUPES_SQL = """
 create temp table pa_dup as
@@ -370,7 +371,7 @@ select d.row_hash, d.advice_ref, k.keeper
      where o.advice_ref <> d.advice_ref
        and coalesce(o.invoice_no, o.doc_ref) = coalesce(d.invoice_no, d.doc_ref)
        and abs(o.net_amount - d.net_amount) < 0.01
-       and abs(o.payment_date - d.payment_date) <= 5
+       and abs(o.payment_date - d.payment_date) <= 30
        and (o.utr is not null or (o.payment_date, o.advice_ref) < (d.payment_date, d.advice_ref))
      order by (o.utr is null), o.payment_date, o.advice_ref
      limit 1) k
