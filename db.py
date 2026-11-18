@@ -355,9 +355,9 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
     return final
 
 
-# Instamart VCredits rows with no UTR are keyed by entity + vendor code + date, so the same payment can sit under
-# that key AND under its UTR (the Zoho Books advice, or another VCredits file that printed the UTR), or under two
-# date keys. Measured 2026-11-17: 418 such rows, Rs 2.6 Cr counted twice. A row of an undated-key advice is a copy
+# Instamart VCredits rows with no UTR are keyed by entity + vendor code + date (Zoho Books ones with no UTR by
+# 'ZOHO-<id>'), so the same payment can sit under that key AND under its UTR (Zoho Books, another VCredits file
+# that printed the UTR, the vendor portal export), or under two date keys. Measured 2026-11-17: 418 such rows, Rs 2.6 Cr counted twice. A row of an undated-key advice is a copy
 # when the same invoice / doc ref and amount is paid within 5 days under another advice_ref; the UTR copy is kept,
 # else the earliest. Runs after every load, so the order the mails arrive in does not matter.
 UNKEYED_DUPES_SQL = """
@@ -374,7 +374,7 @@ select d.row_hash, d.advice_ref, k.keeper
        and (o.utr is not null or (o.payment_date, o.advice_ref) < (d.payment_date, d.advice_ref))
      order by (o.utr is null), o.payment_date, o.advice_ref
      limit 1) k
- where d.feed = 'instamart_vcredits' and d.utr is null and coalesce(d.invoice_no, d.doc_ref) is not null;
+ where d.feed in ('instamart_vcredits', 'instamart') and d.utr is null and coalesce(d.invoice_no, d.doc_ref) is not null;
 delete from public.pa_instamart t using pa_dup d where t.row_hash = d.row_hash;
 update public.pa_instamart t set payment_amount = s.total
   from (select advice_ref, round(sum(net_amount), 2) as total from public.pa_instamart
@@ -386,7 +386,7 @@ update public.pa_mail_log g
        detail = concat_ws('; ', nullif(g.detail, ''),
                           x.n || ' payment row(s) dropped, also under ' || x.keepers)
   from (select advice_ref, count(*) n, string_agg(distinct keeper, ', ') keepers from pa_dup group by 1) x
- where g.feed = 'instamart_vcredits' and g.advice_ref = x.advice_ref
+ where g.feed in ('instamart_vcredits', 'instamart') and g.advice_ref = x.advice_ref
    and g.status in ('loaded', 'header_only', 'loaded_round_off', 'loaded_no_total');
 select count(*), count(distinct advice_ref) from pa_dup;
 """

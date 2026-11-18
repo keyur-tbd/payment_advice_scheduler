@@ -27,7 +27,7 @@ from collections import Counter, defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from feeds import CUSTOMERS, FEEDS  # noqa: E402
+from feeds import CUSTOMERS, FEEDS, MAIL_FEEDS  # noqa: E402
 from pa_common import Skip, advice_dict, gmail_service, iter_mails, to_jsonable  # noqa: E402
 
 log = logging.getLogger("pa")
@@ -122,7 +122,7 @@ def run_feed(name: str, svc, conn, after: dt.date, args, refs=None) -> Counter:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--feeds", default=",".join(FEEDS), help="comma list; default all: " + ",".join(FEEDS))
+    ap.add_argument("--feeds", default=",".join(MAIL_FEEDS), help="comma list; default all: " + ",".join(MAIL_FEEDS))
     ap.add_argument("--days", type=int, default=DEFAULT_DAYS)
     ap.add_argument("--since", type=dt.date.fromisoformat, help="overrides --days")
     ap.add_argument("--before", type=dt.date.fromisoformat)
@@ -141,7 +141,7 @@ def main() -> int:
     args = ap.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(message)s")
     args.feeds = [f.strip() for f in args.feeds.split(",") if f.strip()]
-    unknown = [f for f in args.feeds if f not in FEEDS]
+    unknown = [f for f in args.feeds if f not in MAIL_FEEDS]
     if unknown:
         ap.error(f"unknown feed(s): {unknown}")
 
@@ -156,7 +156,7 @@ def main() -> int:
         if args.apply_schema:
             db.apply_schema(conn)
             print("schema applied")
-            if args.feeds == list(FEEDS) and not args.since and "--days" not in sys.argv:
+            if args.feeds == MAIL_FEEDS and not args.since and "--days" not in sys.argv:
                 return 0
     after = args.since or (dt.date.today() - dt.timedelta(days=args.days))
     services = {}                     # one Gmail client per mailbox, opened when first needed

@@ -67,6 +67,7 @@ class Feed:
     mailbox: str = "accounts"       # which @thebakersdozen.in inbox (see pa_common.gmail_service)
     merge_repeats: bool = False     # same advice_ref again from this feed: add the lines earlier mails lacked
                                     # (statements that repeat a transfer as it fills in; see db.load_advice)
+    mail: bool = True               # False = loaded from files by its own script, never by run.py
 
     def load_parser(self) -> Callable:
         return importlib.import_module(f"parsers.{self.parser}").parse
@@ -113,6 +114,9 @@ FEEDS: Dict[str, Feed] = {
     "instamart_vcredits": Feed(   # Instamart entities' 'Payment Receipts VCredits.xlsx' (2024 on); below the
         "filename:VCredits", "instamart_vcredits",   # Zoho Books advices, which carry a printed total
         priority=5, mailbox="instamart", merge_repeats=True),
+    "instamart_portal": Feed(   # NOT mail: the Instamart vendor portal's CSV exports, loaded by load_portal.py.
+        "", "instamart_portal",  # Every payment with its printed total, all our vendor codes; above VCredits,
+        priority=7, mailbox="instamart", mail=False),   # below the Zoho Books advices (they carry TDS / gross)
     "hsbc": Feed(        # Flipkart India; Zepto / Kiranakart copies skipped (pa_zepto has them)
         "from:advising.service@advising.hsbc.com subject:\"Payment Advice\" has:attachment", "hsbc"),
     "jpmorgan": Feed(    # Compass India, Bottle Lab; advice in the body
@@ -122,3 +126,5 @@ FEEDS: Dict[str, Feed] = {
     "shri_balaji": Feed(  # Zoho Inventory (the Instamart payers use Zoho Books, to instamart@)
         "from:message-service@sender.zoho-inventory.in subject:\"payment has been made\"", "shri_balaji"),
 }
+
+MAIL_FEEDS = [k for k, f in FEEDS.items() if f.mail]

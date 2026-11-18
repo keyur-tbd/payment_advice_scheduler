@@ -32,6 +32,7 @@ Data FY26-27 with RTV/DN Tracker".
 | `dorabjee` | MahaPayments@mahabank.co.in, mail body only | `pa_dorabjee` |
 | `instamart` | **instamart@** inbox: Zoho Books 'payment success' from message-service@sender.zoho-books.in, PDF | `pa_instamart` (Moksh C00157, Jupiter Kart C00154, Aariga C00196, Setron C00183; Cloudstore/Cloudkart/PJTJ mapped, none mailed yet) |
 | `instamart_vcredits` | **instamart@** inbox: 'Payment Receipts VCredits.xlsx' (query `filename:VCredits`), one mail per Instamart entity x our vendor code | `pa_instamart`, one advice per UTR (blank UTR: `<ENTITY>-<vendor code>-<yyyymmdd>`); payment_amount = sum of the rows we hold (no printed total); priority below `instamart` |
+| `instamart_portal` | **not mail**: the Instamart vendor portal's CSV exports (Payment Report + Payment adjustment at Invoice level), loaded by hand with `load_portal.py` | `pa_instamart`, one advice per UTR with the portal's printed total, all our vendor codes; priority 7, between `instamart` (10) and `instamart_vcredits` (5) |
 | `hsbc` | advising.service@advising.hsbc.com, Payment_Advice.pdf (multi-page) | `pa_flipkart` (Flipkart India C00048, since Sep 2023); Zepto / Kiranakart copies skipped - `pa_zepto` has them |
 | `jpmorgan` | statements_and_alerts@jpmchase.com, mail body (zip repeats it) | `pa_compass` (C00459), `pa_bottle_lab` (C00503) |
 | `benzer` | account@benzerworld.com, Tally payment voucher PDF (PRR Fresh parser) | `pa_benzer` (C00113) |
@@ -49,6 +50,20 @@ nothing is left).
 
 A VCredits mail covers only the vendor codes copied to instamart@; one bank transfer pays all of an
 entity's vendor codes, so many VCredits totals are a part of the ERP receipt and do not match it by amount.
+
+## Instamart vendor portal (by hand)
+
+The VCredits mails cover only the vendor codes copied to instamart@. The entities' vendor portal
+(vendors.zohocreatorportal.in, log in as instamart@) lists every payment. Every few weeks: open
+*Payment Report* and *Payment Adjustment Invoice Level Report*, export icon -> **Export as CSV** with every
+filter at 'All', then
+
+    python load_portal.py Payment_Report.csv Payment_adjustment_at_Invoice_level.csv --dry-run
+    python load_portal.py Payment_Report.csv Payment_adjustment_at_Invoice_level.csv --env-file <.env>
+
+Payments from 2024-04-01 on (`--since`), bank payments only (debit adjustments are not cash). Each month is
+one pseudo-mail `portal-YYYY-MM`, so a newer export rewrites the months in place. `run.py` never runs this
+feed (`Feed.mail=False`).
 
 ## Columns (every `pa_*` table)
 `advice_ref`, `utr`, `payment_date`, `payment_amount` (printed total) repeat on each line;
