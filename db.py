@@ -244,6 +244,24 @@ class RefIndex:
         return self.tables[table]
 
 
+REUSE_DAYS = 60   # same advice no., > 60 days and > Re 1 apart from every stored copy = a different payment
+
+
+def _other_payment(cur, table: str, advice: Advice, mail: Mail) -> bool:
+    """True when every stored copy of this advice_ref (from other mails) is a different payment: payment
+    date more than REUSE_DAYS away AND amount more than Re 1 away. Both must differ: Vijetha re-sends an
+    advice months later under a new date with the same amount and lines, and that stays a duplicate.
+    Checked 2026-11-19 over ~23k 'duplicate' log rows: only Zepto's 3 reused numbers meet it."""
+    if advice.payment_date is None or advice.payment_amount is None:
+        return False
+    cur.execute(f"select distinct payment_date, payment_amount from public.{table} "
+                f"where advice_ref = %s and mail_id <> %s", (advice.advice_ref, mail.id))
+    rows = cur.fetchall()
+    return bool(rows) and all(
+        d is not None and a is not None and abs((d - advice.payment_date).days) > REUSE_DAYS
+        and abs(float(a) - advice.payment_amount) > 1 for d, a in rows)
+
+
 def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Optional[RefIndex] = None) -> str:
     """Queue one checked advice's writes (delete + insert + log). Returns the pa_mail_log
     status. Nothing is sent here: mark_mail_done sends the whole mail as one transaction, so
@@ -266,6 +284,14 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
 
         known = refs.get(table)
         merged = False
+        if advice.advice_ref and any(m != mail.id for _, m in known.get(advice.advice_ref, set())) \
+                and _other_payment(cur, table, advice, mail):
+            # A payer reused the number for another payment (Zepto: 2000012591 = Rs 43,156 on 27 Feb 2024 and
+            # Rs 1,03,236 on 12 May 2026). Keyed apart so it is not dropped as a 'duplicate' of the first.
+            reused = advice.advice_ref
+            advice = dataclasses.replace(advice, advice_ref=f"{reused}@{advice.payment_date:%Y-%m-%d}")
+            detail = "; ".join(x for x in (detail, f"advice no. {reused} also names another payment: keyed "
+                                                    f"{advice.advice_ref}") if x)
         if advice.advice_ref:
             others = {(f, m) for f, m in known.get(advice.advice_ref, set()) if m != mail.id}
             mine = FEEDS[feed].priority
