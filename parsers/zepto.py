@@ -32,8 +32,11 @@ ENTITIES = (
     ("KIRANAKART TECHNOLOGIES", "C00043"),
 )
 _N = r"-?[\d,]+(?:\.\d+)?"
-ROW_RE = re.compile(r"^(\d+)\s+([A-Za-z][A-Za-z -]*?)\s+(\d{6,12})(?:\s+(\S+))?\s+(" + _N + r")\s+INR\s+("
-                    + _N + r")\s+(" + _N + r")\s*$")
+# The Ref Doc may be several words ('8989 Invoice Payment 1900399212 RECO ENTRY 9,870 INR 9.87 9,860.13' in
+# 2000067227, a Zepto reconciliation payment): words after the first must start with a letter, so the ref can
+# never swallow the amount that follows.
+ROW_RE = re.compile(r"^(\d+)\s+([A-Za-z][A-Za-z -]*?)\s+(\d{6,12})(?:\s+(\S+(?:\s+[A-Za-z][A-Za-z_/-]*)*?))?\s+("
+                    + _N + r")\s+INR\s+(" + _N + r")\s+(" + _N + r")\s*$")
 OUR_INVOICE = re.compile(r"^\d{2}[A-Z]{3}-\d+")
 KINDS = {"invoice payment": "INVOICE", "credit memo": "CREDIT_NOTE", "debit memo": "DEBIT_NOTE"}
 
