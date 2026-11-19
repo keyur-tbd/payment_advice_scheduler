@@ -58,7 +58,7 @@ CUSTOMERS: Dict[str, Customer] = {
     "bottle_lab":     Customer("pa_bottle_lab",     ("C00503",), "Bottle Lab Technologies (J.P. Morgan advices)"),
     # added 2026-11-19: advices that never reach accounts@ (user: Blinkit -> kolwarehouse@, More Retail -> payments@)
     "blinkit":        Customer("pa_blinkit",        ("C00524",), "Blink Commerce (Blinkit; sap@zomato.com to kolwarehouse@)"),
-    "more_retail":    Customer("pa_more_retail",    ("C00049",), "More Retail (Kotak CMS advices to payments@)"),
+    "more_retail":    Customer("pa_more_retail",    ("C00049",), "More Retail (Kotak CMS, then HSBC from docs@more.in; both to payments@)"),
 }
 
 
@@ -135,6 +135,9 @@ FEEDS: Dict[str, Feed] = {
     "kotak_more": Feed(  # More Retail via Kotak CMS, mailed to payments@ only; none reach it after 25 Aug 2026
         "from:(CMSAlerts@kotak.bank.in OR cmsalerts@kotak.com) subject:\"Credit Intimation\" has:attachment",
         "kotak_more", mailbox="payments"),
+    "more_hsbc": Feed(   # More Retail via HSBC since 29 Jun 2026 (Kotak stopped 25 Aug): docs@more.in to payments@,
+        "from:docs@more.in subject:\"Payment Advice\" has:attachment",   # PDF + invoice / debit-note breakup xlsx
+        "more_hsbc", mailbox="payments"),
 }
 
 MAIL_FEEDS = [k for k, f in FEEDS.items() if f.mail]

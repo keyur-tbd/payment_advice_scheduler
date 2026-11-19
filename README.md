@@ -39,7 +39,8 @@ Data FY26-27 with RTV/DN Tracker".
 | `shri_balaji` | message-service@sender.zoho-inventory.in, Zoho Inventory PDF | `pa_shri_balaji` (C00509, since Feb 2026) |
 | `blinkit` | **kolwarehouse@** inbox: sap@zomato.com 'Payment Advice - YYYYMMDD', one PDF per UTR (invoices with TDS, CN/DN, variance, brand fund) | `pa_blinkit` (Blink Commerce C00524; since Apr 2026) |
 | `zepto_portal` | **not mail**: Payment Advice PDFs from the Zepto brand portal (brands.zepto.co.in, OTP login; same PDF as the mails), saved daily by the accounts team to Drive "Zepto Payment Advices (portal PDFs)"; `load_zepto_portal.py` in `payment_advice.yml` | `pa_zepto`; priority 5, below the mailed `zepto` (10) |
-| `kotak_more` | **payments@** inbox: CMSAlerts@kotak.bank.in 'Credit Intimation', PAY_PAID_*.pdf | `pa_more_retail` (More Retail C00049; Feb 2025 - 25 Aug 2026, none since) |
+| `kotak_more` | **payments@** inbox: CMSAlerts@kotak.bank.in 'Credit Intimation', PAY_PAID_*.pdf | `pa_more_retail` (More Retail C00049; Feb 2025 - 25 Aug 2026, then HSBC: `more_hsbc`) |
+| `more_hsbc` | **payments@** inbox: docs@more.in 'Payment Advice - HSBCN... - MIMANSA INDUSTRIES', payment_advice_MORE*.pdf (Jun 2026: an extension-less .xlsx) + invoice_debitnote_breakup_MORE*.xlsx (Sep 2026 on) | `pa_more_retail` (C00049; since 29 Jun 2026); invoices net of TDS, DMQ shortage notes as GDN lines. docs@more.in's 'Standard Invoice Settlement' workbooks (adjustments only, no cash) are not read |
 
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
 Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's copy wins
