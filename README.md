@@ -38,6 +38,7 @@ Data FY26-27 with RTV/DN Tracker".
 | `benzer` | account@benzerworld.com, Tally payment voucher PDF (PRR Fresh parser) | `pa_benzer` (C00113) |
 | `shri_balaji` | message-service@sender.zoho-inventory.in, Zoho Inventory PDF | `pa_shri_balaji` (C00509, since Feb 2026) |
 | `blinkit` | **kolwarehouse@** inbox: sap@zomato.com 'Payment Advice - YYYYMMDD', one PDF per UTR (invoices with TDS, CN/DN, variance, brand fund) | `pa_blinkit` (Blink Commerce C00524; since Apr 2026) |
+| `zepto_portal` | **not mail**: Payment Advice PDFs from the Zepto brand portal (brands.zepto.co.in, OTP login; same PDF as the mails), saved daily by the accounts team to Drive "Zepto Payment Advices (portal PDFs)"; `load_zepto_portal.py` in `payment_advice.yml` | `pa_zepto`; priority 5, below the mailed `zepto` (10) |
 | `kotak_more` | **payments@** inbox: CMSAlerts@kotak.bank.in 'Credit Intimation', PAY_PAID_*.pdf | `pa_more_retail` (More Retail C00049; Feb 2025 - 25 Aug 2026, none since) |
 
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
@@ -77,6 +78,20 @@ By hand, still works: export both reports (export icon -> **Export as CSV**, fil
 Payments from 2024-04-01 on (`--since`), bank payments only (debit adjustments are not cash). Each month is
 one pseudo-mail `portal-YYYY-MM` and each advice is rewritten in place, so re-loads are safe. `run.py` never
 runs this feed (`Feed.mail=False`).
+
+## Zepto brand portal (daily, by hand + Drive)
+Zepto mails only some advices; the portal lists all of them, but its login needs an OTP. Each day the accounts team
+opens https://brands.zepto.co.in/vendor/payments/advice, downloads each new row's PDF (the per-row download button,
+not the page's top "Download", which is a summary CSV without invoice lines) and saves the PDFs into Drive folder
+"Zepto Payment Advices (portal PDFs)" (id `11Ya59bJS0ECTKtU6he0uOpz-75B281Vz`, owner instamart@, accounts@ can edit,
+birbal@ reads). Any file name, sub-folders OK; re-saving a file already there does no harm (an advice already
+held logs `duplicate`).
+
+    python load_zepto_portal.py --drive-folder 11Ya59bJS0ECTKtU6he0uOpz-75B281Vz   # what the workflow runs
+    python load_zepto_portal.py --dir <folder> --dry-run                           # local PDFs, parse only
+
+Each Drive file is one pseudo-mail `zportal-<file id>`, read once. Secret `ZEPTO_PORTAL_DRIVE_TOKEN_JSON` = birbal@
+drive.readonly token; the step skips itself while the secret is unset.
 
 ## Columns (every `pa_*` table)
 `advice_ref`, `utr`, `payment_date`, `payment_amount` (printed total) repeat on each line;

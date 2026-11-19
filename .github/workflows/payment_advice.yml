@@ -44,3 +44,14 @@ jobs:
           if [ -n "${{ github.event.inputs.feeds }}" ]; then args="$args --feeds ${{ github.event.inputs.feeds }}"; fi
           if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
           python run.py $args
+      - name: Zepto portal PDFs (Drive)
+        # The accounts team saves the day's Payment Advice PDFs from brands.zepto.co.in (OTP login) into
+        # Drive "Zepto Payment Advices (portal PDFs)" (owner instamart@, accounts@ edits, birbal@ reads).
+        # Each file is read once; a re-run skips it.
+        env:
+          ZEPTO_PORTAL_DRIVE_TOKEN_JSON: ${{ secrets.ZEPTO_PORTAL_DRIVE_TOKEN_JSON }}   # birbal@ drive.readonly
+          ZEPTO_PORTAL_DRIVE_FOLDER: 11Ya59bJS0ECTKtU6he0uOpz-75B281Vz
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$ZEPTO_PORTAL_DRIVE_TOKEN_JSON" ]; then echo "secret ZEPTO_PORTAL_DRIVE_TOKEN_JSON not set; skipped"; exit 0; fi
+          python load_zepto_portal.py
