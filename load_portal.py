@@ -4,9 +4,11 @@ Load the Instamart vendor portal's two CSV exports into pa_instamart (feed 'inst
 
     python load_portal.py Payment_Report.csv Payment_adjustment_at_Invoice_level.csv --dry-run
     python load_portal.py Payment_Report.csv Payment_adjustment_at_Invoice_level.csv --env-file D:/.../.env
+    python load_portal.py --fetch                  # sign in headless (portal_fetch.py), export both, load
 
-Export both reports from vendors.zohocreatorportal.in (export icon -> CSV, all filters 'All') while logged
-in; the portal needs a login, so this runs by hand, not on GitHub. Re-loading a newer export is safe: each
+By hand: export both reports from vendors.zohocreatorportal.in (export icon -> CSV, all filters 'All').
+--fetch does the same with INSTAMART_PORTAL_EMAIL / INSTAMART_PORTAL_PASSWORD (instamart_portal.yml, daily),
+and by default reloads only payments from the start of the month three months back. Re-loading a newer export is safe: each
 calendar month of payments is one pseudo-mail ('portal-YYYY-MM'), so a re-export rewrites that month's rows
 in place, and the advice_ref (UTR) de-duplicates against the Zoho Books (wins) and VCredits (gives way) copies.
 """
@@ -30,13 +32,27 @@ FEED = "instamart_portal"
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("payments", help="Payment_Report.csv")
-    ap.add_argument("invoices", help="Payment_adjustment_at_Invoice_level.csv")
-    ap.add_argument("--since", type=dt.date.fromisoformat, default=dt.date(2024, 4, 1),
-                    help="first payment date to load (default 2024-04-01, when the ERP starts)")
+    ap.add_argument("payments", nargs="?", help="Payment_Report.csv")
+    ap.add_argument("invoices", nargs="?", help="Payment_adjustment_at_Invoice_level.csv")
+    ap.add_argument("--fetch", action="store_true", help="download both exports first (portal_fetch.py)")
+    ap.add_argument("--out", default="portal_exports", help="--fetch: where the exports go")
+    ap.add_argument("--since", type=dt.date.fromisoformat, default=None,
+                    help="first payment date to load (default 2024-04-01, when the ERP starts; "
+                         "with --fetch the 1st of the month three months back)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--env-file", default=os.environ.get("PA_ENV_FILE", ""))
     args = ap.parse_args()
+    if args.fetch:
+        import portal_fetch
+        args.payments, args.invoices = portal_fetch.fetch(args.out, *portal_fetch.credentials(args.env_file))
+        if args.since is None:
+            t = dt.date.today()
+            m = t.year * 12 + t.month - 1 - 3
+            args.since = dt.date(m // 12, m % 12 + 1, 1)
+    elif not (args.payments and args.invoices):
+        ap.error("give both CSV files, or --fetch")
+    if args.since is None:
+        args.since = dt.date(2024, 4, 1)
 
     with open(args.payments, "rb") as fh:
         pay = fh.read()

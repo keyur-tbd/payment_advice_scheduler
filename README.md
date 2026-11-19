@@ -32,7 +32,7 @@ Data FY26-27 with RTV/DN Tracker".
 | `dorabjee` | MahaPayments@mahabank.co.in, mail body only | `pa_dorabjee` |
 | `instamart` | **instamart@** inbox: Zoho Books 'payment success' from message-service@sender.zoho-books.in, PDF | `pa_instamart` (Moksh C00157, Jupiter Kart C00154, Aariga C00196, Setron C00183; Cloudstore/Cloudkart/PJTJ mapped, none mailed yet) |
 | `instamart_vcredits` | **instamart@** inbox: 'Payment Receipts VCredits.xlsx' (query `filename:VCredits`), one mail per Instamart entity x our vendor code | `pa_instamart`, one advice per UTR (blank UTR: `<ENTITY>-<vendor code>-<yyyymmdd>`); payment_amount = sum of the rows we hold (no printed total); priority below `instamart` |
-| `instamart_portal` | **not mail**: the Instamart vendor portal's CSV exports (Payment Report + Payment adjustment at Invoice level), loaded by hand with `load_portal.py` | `pa_instamart`, one advice per UTR with the portal's printed total, all our vendor codes; priority 7, between `instamart` (10) and `instamart_vcredits` (5) |
+| `instamart_portal` | **not mail**: the Instamart vendor portal's CSV exports (Payment Report + Payment adjustment at Invoice level), fetched daily by `instamart_portal.yml` (`load_portal.py --fetch`) | `pa_instamart`, one advice per UTR with the portal's printed total, all our vendor codes; priority 7, between `instamart` (10) and `instamart_vcredits` (5) |
 | `hsbc` | advising.service@advising.hsbc.com, Payment_Advice.pdf (multi-page) | `pa_flipkart` (Flipkart India C00048, since Sep 2023); Zepto / Kiranakart copies skipped - `pa_zepto` has them |
 | `jpmorgan` | statements_and_alerts@jpmchase.com, mail body (zip repeats it) | `pa_compass` (C00459), `pa_bottle_lab` (C00503) |
 | `benzer` | account@benzerworld.com, Tally payment voucher PDF (PRR Fresh parser) | `pa_benzer` (C00113) |
@@ -51,19 +51,30 @@ nothing is left).
 A VCredits mail covers only the vendor codes copied to instamart@; one bank transfer pays all of an
 entity's vendor codes, so many VCredits totals are a part of the ERP receipt and do not match it by amount.
 
-## Instamart vendor portal (by hand)
+## Instamart vendor portal (daily, headless browser)
 
 The VCredits mails cover only the vendor codes copied to instamart@. The entities' vendor portal
-(vendors.zohocreatorportal.in, log in as instamart@) lists every payment. Every few weeks: open
-*Payment Report* and *Payment Adjustment Invoice Level Report*, export icon -> **Export as CSV** with every
-filter at 'All', then
+(vendors.zohocreatorportal.in, instamart@ login, email + password, no OTP) lists every payment.
+`.github/workflows/instamart_portal.yml` runs daily at 11:30 IST (and on dispatch, optional `since`):
+
+    python load_portal.py --fetch --out <dir>        # portal_fetch.py signs in, exports both CSVs, then loads
+
+`portal_fetch.py` drives Playwright Chromium: sign in, open *Payment Report* and *Payment Adjustment Invoice
+Level Report* from the menu, and in each embedded Zoho Analytics view click the table's Export -> Export as CSV
+-> Export (default 'Current View (Data)' = the whole table). The Payment Report page embeds two views (a total
+tile with its own Export, then the table), so the script uses the Export in the toolbar with the visible Sort.
+Credentials: secrets / env `INSTAMART_PORTAL_EMAIL`, `INSTAMART_PORTAL_PASSWORD`. If Zoho asks for a captcha
+or code the run fails (screenshot `portal_fetch_failure.png` in `--out`, not uploaded: the repo is public);
+sign in by hand once and re-run. With `--fetch` the default `--since` is the 1st of the month three months back.
+
+By hand, still works: export both reports (export icon -> **Export as CSV**, filters 'All'), then
 
     python load_portal.py Payment_Report.csv Payment_adjustment_at_Invoice_level.csv --dry-run
     python load_portal.py Payment_Report.csv Payment_adjustment_at_Invoice_level.csv --env-file <.env>
 
 Payments from 2024-04-01 on (`--since`), bank payments only (debit adjustments are not cash). Each month is
-one pseudo-mail `portal-YYYY-MM`, so a newer export rewrites the months in place. `run.py` never runs this
-feed (`Feed.mail=False`).
+one pseudo-mail `portal-YYYY-MM` and each advice is rewritten in place, so re-loads are safe. `run.py` never
+runs this feed (`Feed.mail=False`).
 
 ## Columns (every `pa_*` table)
 `advice_ref`, `utr`, `payment_date`, `payment_amount` (printed total) repeat on each line;
