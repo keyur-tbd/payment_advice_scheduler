@@ -37,6 +37,8 @@ Data FY26-27 with RTV/DN Tracker".
 | `jpmorgan` | statements_and_alerts@jpmchase.com, mail body (zip repeats it) | `pa_compass` (C00459), `pa_bottle_lab` (C00503) |
 | `benzer` | account@benzerworld.com, Tally payment voucher PDF (PRR Fresh parser) | `pa_benzer` (C00113) |
 | `shri_balaji` | message-service@sender.zoho-inventory.in, Zoho Inventory PDF | `pa_shri_balaji` (C00509, since Feb 2026) |
+| `blinkit` | **kolwarehouse@** inbox: sap@zomato.com 'Payment Advice - YYYYMMDD', one PDF per UTR (invoices with TDS, CN/DN, variance, brand fund) | `pa_blinkit` (Blink Commerce C00524; since Apr 2026) |
+| `kotak_more` | **payments@** inbox: CMSAlerts@kotak.bank.in 'Credit Intimation', PAY_PAID_*.pdf | `pa_more_retail` (More Retail C00049; Feb 2025 - 25 Aug 2026, none since) |
 
 The same payment can arrive twice (RBML via HDFC + RIL Treasury; Reliance Retail via RR + Axis).
 Inside a table the advice is keyed by `advice_ref`; the higher-priority feed's copy wins
@@ -116,3 +118,6 @@ select * from pa_zepto where line_type = 'ROUND_OFF' order by abs(net_amount) de
 4. `--dry-run --days 365` until every advice is `loaded`, then `--apply-schema` and run.
 
 The `instamart` feed reads a second mailbox: secret `PA_GMAIL_TOKEN_JSON_INSTAMART` (locally `PA_GMAIL_TOKEN_FILE_INSTAMART=<path to token>`). Without it that feed is skipped and the rest run.
+
+Since 2026-11-19 two more mailboxes: `blinkit` reads kolwarehouse@ (secret `PA_GMAIL_TOKEN_JSON_KOLWAREHOUSE`), `kotak_more` reads payments@ (secret `PA_GMAIL_TOKEN_JSON_PAYMENTS`). Sign in once with `python gmail_auth.py kolwarehouse` / `python gmail_auth.py payments` (writes token_<mailbox>.json, git-ignored); locally set `PA_GMAIL_TOKEN_FILE_<MAILBOX>` to that file.
+More Retail's own 'Standard Invoice Settlement' workbooks (docs@more.in to payments@) are NOT payments: they list the GDN / TDS More books against each invoice when it books it, weeks before paying; none equals a receipt (checked 2026-11-19).

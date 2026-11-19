@@ -56,6 +56,9 @@ CUSTOMERS: Dict[str, Customer] = {
     "benzer":         Customer("pa_benzer",         ("C00113",), "Benzer Department Store (Tally voucher)"),
     "compass":        Customer("pa_compass",        ("C00459",), "Compass India Food Services (J.P. Morgan advices)"),
     "bottle_lab":     Customer("pa_bottle_lab",     ("C00503",), "Bottle Lab Technologies (J.P. Morgan advices)"),
+    # added 2026-11-19: advices that never reach accounts@ (user: Blinkit -> kolwarehouse@, More Retail -> payments@)
+    "blinkit":        Customer("pa_blinkit",        ("C00524",), "Blink Commerce (Blinkit; sap@zomato.com to kolwarehouse@)"),
+    "more_retail":    Customer("pa_more_retail",    ("C00049",), "More Retail (Kotak CMS advices to payments@)"),
 }
 
 
@@ -125,6 +128,11 @@ FEEDS: Dict[str, Feed] = {
         "from:account@benzerworld.com has:attachment", "benzer"),
     "shri_balaji": Feed(  # Zoho Inventory (the Instamart payers use Zoho Books, to instamart@)
         "from:message-service@sender.zoho-inventory.in subject:\"payment has been made\"", "shri_balaji"),
+    "blinkit": Feed(     # Blink Commerce, mailed to kolwarehouse@ only
+        "from:sap@zomato.com subject:\"Payment Advice\" has:attachment", "blinkit", mailbox="kolwarehouse"),
+    "kotak_more": Feed(  # More Retail via Kotak CMS, mailed to payments@ only; none reach it after 25 Aug 2026
+        "from:(CMSAlerts@kotak.bank.in OR cmsalerts@kotak.com) subject:\"Credit Intimation\" has:attachment",
+        "kotak_more", mailbox="payments"),
 }
 
 MAIL_FEEDS = [k for k, f in FEEDS.items() if f.mail]
