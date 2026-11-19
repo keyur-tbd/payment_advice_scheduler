@@ -130,6 +130,8 @@ FEEDS: Dict[str, Feed] = {
         "from:message-service@sender.zoho-inventory.in subject:\"payment has been made\"", "shri_balaji"),
     "blinkit": Feed(     # Blink Commerce, mailed to kolwarehouse@ only
         "from:sap@zomato.com subject:\"Payment Advice\" has:attachment", "blinkit", mailbox="kolwarehouse"),
+    "zepto_portal": Feed(   # NOT mail: Zepto brand-portal advice PDFs (same layout as the mails), loaded by
+        "", "zepto", priority=5, mail=False),   # load_zepto_portal.py; below the mailed copy
     "kotak_more": Feed(  # More Retail via Kotak CMS, mailed to payments@ only; none reach it after 25 Aug 2026
         "from:(CMSAlerts@kotak.bank.in OR cmsalerts@kotak.com) subject:\"Credit Intimation\" has:attachment",
         "kotak_more", mailbox="payments"),
