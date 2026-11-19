@@ -41,6 +41,7 @@ def _visible(frame, selector, last=False):
 
 
 def _login(page, email: str, password: str) -> None:
+    from playwright.sync_api import Error as PlaywrightError
     page.goto(PORTAL, wait_until="domcontentloaded", timeout=90_000)
     # Signed out, the portal shows Zoho's sign-in form in an iframe (/accounts/p/<id>/signin).
     frame = None
@@ -62,21 +63,24 @@ def _login(page, email: str, password: str) -> None:
     # a code or captcha is a stop.
     for _ in range(120):
         page.wait_for_timeout(500)
-        if page.query_selector('a[href="#Payment_Report1"]'):
-            return
-        f = next((f for f in page.frames if "/signin" in f.url or "/accounts/" in f.url), None)
-        if not f:
-            continue
-        for sel in ("#captcha", "#verifycaptcha", "#otp", "#mfa_otp", "#mfa_totp", "#emailverify", "#backupcode"):
-            if _visible(f, sel):
-                raise PortalError(f"Zoho asked for more than the password ({sel.lstrip('#')}); sign in by hand once")
-        err = _visible(f, ".fielderror")
-        if err and err.inner_text().strip():
-            raise PortalError(f"sign-in refused: {err.inner_text().strip()}")
-        for label in ("Not now", "Skip"):
-            btn = f.get_by_role("button", name=label)
-            if btn.count() and btn.first.is_visible():
-                btn.first.click()
+        try:
+            if page.query_selector('a[href="#Payment_Report1"]'):
+                return
+            f = next((f for f in page.frames if "/signin" in f.url or "/accounts/" in f.url), None)
+            if not f:
+                continue
+            for sel in ("#captcha", "#verifycaptcha", "#otp", "#mfa_otp", "#mfa_totp", "#emailverify", "#backupcode"):
+                if _visible(f, sel):
+                    raise PortalError(f"Zoho asked for more than the password ({sel.lstrip('#')}); sign in by hand once")
+            err = _visible(f, ".fielderror")
+            if err and err.inner_text().strip():
+                raise PortalError(f"sign-in refused: {err.inner_text().strip()}")
+            for label in ("Not now", "Skip"):
+                btn = f.get_by_role("button", name=label)
+                if btn.count() and btn.first.is_visible():
+                    btn.first.click()
+        except PlaywrightError:
+            continue    # the page or sign-in frame navigated away once the password was accepted; look again
     raise PortalError("signed-in portal never appeared")
 
 
