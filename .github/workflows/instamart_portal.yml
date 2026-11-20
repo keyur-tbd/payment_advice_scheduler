@@ -3,7 +3,8 @@ name: Instamart vendor portal to Supabase
 on:
   schedule:
     # 11:30 IST daily. Signs in to vendors.zohocreatorportal.in (email + password), exports the
-    # Payment Report and Payment adjustment at Invoice level CSVs and reloads the last three months.
+    # Payment Report and Payment adjustment at Invoice level CSVs and reloads the last three months, then
+    # replaces the Debit Note Report (instamart_portal_debit_notes) and re-matches it (app.refresh_platform_dn).
     - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
@@ -38,3 +39,12 @@ jobs:
           args="--fetch --out ${{ runner.temp }}/portal"
           if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
           python load_portal.py $args
+      # The Debit Note Report is exported in the same sign-in (Birbal 272: Receivables > Capping DNs & RTVs). The payment
+      # load above never depends on it; a missing export or a failed load turns this step (and the run) red.
+      - name: Debit notes
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          f="${{ runner.temp }}/portal/Debit_Note_Report.csv"
+          if [ ! -f "$f" ]; then echo "::error::the portal run produced no Debit_Note_Report.csv"; exit 1; fi
+          python load_debit_notes.py "$f"

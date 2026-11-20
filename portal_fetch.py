@@ -29,6 +29,8 @@ REPORTS = [
     ("Payment_Report1", "Payment_Report.csv"),
     ("Payment_Adjustment_Invoice_Level_Report", "Payment_adjustment_at_Invoice_level.csv"),
 ]
+# the Debit Note Report (capping / offer debit notes and our capping RTV notes; load_debit_notes.py, Birbal 272)
+DEBIT_NOTES = [("Debit_Note_Report", "Debit_Note_Report.csv")]
 
 
 class PortalError(RuntimeError):
@@ -135,8 +137,10 @@ def _export(page, report: str, dest: str) -> int:
     return os.path.getsize(dest)
 
 
-def fetch(out_dir: str, email: str, password: str, headed: bool = False) -> list:
-    """Sign in, export both reports into out_dir. Returns the two paths (payments, invoices)."""
+def fetch(out_dir: str, email: str, password: str, headed: bool = False, reports=None, optional=None) -> list:
+    """Sign in, export the reports into out_dir (default: the two payment reports). Returns their paths in order.
+    `optional` reports are exported after those in the same sign-in; one that fails is reported and skipped
+    (its path is not returned) so the payment load never depends on it."""
     from playwright.sync_api import sync_playwright
 
     os.makedirs(out_dir, exist_ok=True)
@@ -149,11 +153,18 @@ def fetch(out_dir: str, email: str, password: str, headed: bool = False) -> list
         try:
             _login(page, email, password)
             print("signed in")
-            for report, name in REPORTS:
+            for report, name in (reports or REPORTS):
                 dest = os.path.join(out_dir, name)
                 size = _export(page, report, dest)
                 print(f"  {name}: {size:,} bytes")
                 paths.append(dest)
+            for report, name in (optional or []):
+                dest = os.path.join(out_dir, name)
+                try:
+                    size = _export(page, report, dest)
+                    print(f"  {name}: {size:,} bytes")
+                except Exception as e:      # noqa: BLE001 - an extra report never sinks the payment load
+                    print(f"  {name}: FAILED ({e})", file=sys.stderr)
         except Exception:
             shot = os.path.join(out_dir, "portal_fetch_failure.png")
             try:

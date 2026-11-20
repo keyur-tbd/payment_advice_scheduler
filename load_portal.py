@@ -44,7 +44,9 @@ def main() -> int:
     args = ap.parse_args()
     if args.fetch:
         import portal_fetch
-        args.payments, args.invoices = portal_fetch.fetch(args.out, *portal_fetch.credentials(args.env_file))
+        # the Debit Note Report rides along in the same sign-in; load_debit_notes.py loads it (workflow next step)
+        args.payments, args.invoices = portal_fetch.fetch(args.out, *portal_fetch.credentials(args.env_file),
+                                                          optional=portal_fetch.DEBIT_NOTES)
         if args.since is None:
             t = dt.date.today()
             m = t.year * 12 + t.month - 1 - 3
