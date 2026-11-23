@@ -83,6 +83,15 @@ def main() -> int:
                     subject=f"Instamart vendor portal export, payments of {month}")
         for idx, advice in enumerate(items):
             counts[db.load_advice(conn, FEED, mail, idx, advice, refs)] += 1
+        if dt.date(int(month[:4]), int(month[5:]), 1) >= args.since:
+            # The export holds this whole month, so a reference it no longer lists was renamed on the portal:
+            # Instamart first types a placeholder ('3zvaOXQni3JCGf26dE4ezF | 4EPLRREIYVDRE', 18 Nov 2026) and
+            # later the bank UTR. Without this the placeholder copy stays and the payment counts twice.
+            keep = sorted({a.advice_ref for a in items if a.advice_ref})
+            with conn.cursor() as cur:
+                db._queue(conn, cur.mogrify(
+                    f"delete from public.{db.CUSTOMERS['instamart'].table} where feed = %s and mail_id = %s "
+                    f"and split_part(advice_ref, '@', 1) <> all(%s)", (FEED, mail.id, keep)))
         db.mark_mail_done(conn, FEED, mail, len(items))
         print(f"  {month}: {len(items)} advice(s)")
     rows, n = db.drop_unkeyed_duplicates(conn)
