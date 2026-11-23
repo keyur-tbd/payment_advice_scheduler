@@ -47,7 +47,7 @@ def run_feed(name: str, svc, conn, after: dt.date, args, refs=None) -> Counter:
     counts, per_customer, problems, dump = Counter(), defaultdict(Counter), [], []
     started = dt.datetime.now(dt.timezone.utc)
     n = 0
-    for mail in iter_mails(svc, query, cache_dir=args.cache, skip_ids=skip):
+    for mail in iter_mails(svc, query, cache_dir=args.cache, skip_ids=skip, oldest_first=feed.oldest_first):
         n += 1
         if args.limit and n > args.limit:
             break
@@ -84,7 +84,8 @@ def run_feed(name: str, svc, conn, after: dt.date, args, refs=None) -> Counter:
         for idx, advice in enumerate(advices):
             status, diff = advice.check()
             if args.dry_run or conn is None:
-                final = {"ok": "loaded", "mismatch": "loaded_round_off", "no_total": "loaded_no_total"}.get(status, status)
+                final = "voided" if advice.extra.get("void") else \
+                    {"ok": "loaded", "mismatch": "loaded_round_off", "no_total": "loaded_no_total"}.get(status, status)
             else:
                 import db
                 final = db.load_advice(conn, name, mail, idx, advice, refs)

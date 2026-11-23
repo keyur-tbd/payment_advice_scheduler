@@ -26,6 +26,16 @@ class Customer:
     table: str
     codes: Tuple[str, ...]          # ERP customer codes from Raw Cust Data
     label: str
+    # (first payment date ISO, code): the ERP moved this payer to a new customer card; an advice paid on or
+    # after the date carries that code (the latest one that applies), earlier advices codes[0]
+    code_from: Tuple[Tuple[str, str], ...] = ()
+
+    def code_on(self, paid) -> str:
+        code = self.codes[0]
+        for since, c in sorted(self.code_from):
+            if paid is not None and str(paid) >= since:
+                code = c
+        return code
 
 
 CUSTOMERS: Dict[str, Customer] = {
@@ -35,7 +45,10 @@ CUSTOMERS: Dict[str, Customer] = {
     "rbml":           Customer("pa_rbml",           ("C00402",), "RBML Solutions (Reliance BP Mobility)"),
     # No longer a customer (owner, 2026-10-23); advices stop 27 Feb 2026, table kept for history.
     "dmart":          Customer("pa_dmart",          ("C00415",), "Avenue Supermarts (DMart)"),
-    "dmart_ecom":     Customer("pa_dmart_ecom",     ("C00123",), "Avenue E-commerce (DMart Ready)"),
+    # ERP card C00547 (party 'DMart Ready') from 20 Aug 2026; C00123 (party 'DMart') before. Tagged by payment date
+    # so the Birbal refresh links each advice to the receipt on the right card.
+    "dmart_ecom":     Customer("pa_dmart_ecom",     ("C00123", "C00547"), "Avenue E-commerce (DMart Ready)",
+                               code_from=(("2026-08-20", "C00547"),)),
     "star_bazaar":    Customer("pa_star_bazaar",    ("C00149", "C00046"), "Trent Hypermarket (Star Bazaar)"),
     "natures_basket": Customer("pa_natures_basket", ("C00026",), "Nature's Basket"),
     "spencers":       Customer("pa_spencers",       ("C00041", "C00468"), "Spencer's Retail (RPSG; same ICICI template)"),
@@ -71,6 +84,8 @@ class Feed:
     merge_repeats: bool = False     # same advice_ref again from this feed: add the lines earlier mails lacked
                                     # (statements that repeat a transfer as it fills in; see db.load_advice)
     mail: bool = True               # False = loaded from files by its own script, never by run.py
+    oldest_first: bool = False      # read a run's mails oldest first: a later mail can void what an earlier one
+                                    # loaded (Vijetha ledgers: a bounced cheque shows only in later ledgers)
 
     def load_parser(self) -> Callable:
         return importlib.import_module(f"parsers.{self.parser}").parse
@@ -88,7 +103,10 @@ FEEDS: Dict[str, Feed] = {
         "from:(treasury.paymentadvice@zmail.ril.co OR TREASURY.PAYMENTADVICE@ril.com) has:attachment",
         "ril_treasury", priority=20),
     "axis": Feed(
-        "from:(Straight2axis@axisbank.com OR straight2axis@axis.bank.in) has:attachment", "axis"),
+        # Since Mar 2026 DMart's advices come from noreply@axis.bank.in to another mailbox (not accounts@); accounts@ only gets
+        # the ones the team forwards ('Fwd: Payment Advice::AVENUE SUPERMARTS ...'), so the subject is matched too.
+        "(from:(Straight2axis@axisbank.com OR straight2axis@axis.bank.in OR noreply@axis.bank.in) OR "
+        "subject:\"Payment Advice::AVENUE SUPERMARTS\") has:attachment", "axis"),
     "hdfc_enet": Feed(
         "from:(Enetadvicemailing@hdfcbank.net OR enetadvicemailing@hdfcbank.bank.in) has:attachment",
         "hdfc_enet"),
@@ -107,7 +125,8 @@ FEEDS: Dict[str, Feed] = {
     "namdhari": Feed(
         "from:erp@namdharis.in subject:\"Payment Advice\" has:attachment", "namdhari"),
     "vijetha": Feed(
-        "from:payments@vijetha.in subject:\"Payment Advice\" has:attachment", "vijetha"),
+        # subject 'Payment Advice' to Sep 2026, then 'Mimansa Industries Pvt Ltd (Ledger Account)' (Tally ledger)
+        "from:payments@vijetha.in has:attachment", "vijetha", oldest_first=True),
     "ratnadeep": Feed(
         "from:automail@ratnadeepretail.com has:attachment", "ratnadeep"),
     "dorabjee": Feed(   # body-only bank advice, no attachment

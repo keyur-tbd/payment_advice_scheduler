@@ -351,8 +351,9 @@ def fetch_mail(svc, mid: str, cache_dir: Optional[str] = None) -> Mail:
 
 
 def iter_mails(svc, query: str, cache_dir: Optional[str] = None,
-               skip_ids: Iterable[str] = ()) -> Iterator[Mail]:
+               skip_ids: Iterable[str] = (), oldest_first: bool = False) -> Iterator[Mail]:
     skip = set(skip_ids)
-    for mid in list_message_ids(svc, query):
+    ids = list_message_ids(svc, query)          # Gmail lists newest first
+    for mid in (reversed(ids) if oldest_first else ids):
         if mid not in skip:
             yield fetch_mail(svc, mid, cache_dir)

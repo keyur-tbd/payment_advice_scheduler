@@ -36,13 +36,15 @@ import re
 from pa_common import Advice, Line, Mail, Skip, date, num, open_pdf_text
 
 AMT = r"-?[\d,]+\.\d{2}-?"
+# Nov 2026 layout (noreply@axis.bank.in): 'Payment Initition : 19-11-2026' with 'Date' wrapped to the next line,
+# 'Payment Reference : 2000...ASPL', 'Beneficiary code', table header 'Sr.No' without the dot.
 FIELD = {
-    "date": re.compile(r"Payment Ini\. Date\s*:\s*(\d{2}-\d{2}-\d{4})"),
+    "date": re.compile(r"Payment Ini(?:\.|titi?on|tiation)\s*(?:Date)?\s*:\s*(\d{2}-\d{2}-\d{4})"),
     "amount": re.compile(r"\bAmount\s*:\s*(" + AMT + ")"),
     "company": re.compile(r"Company Name\s*:\s*(.+?)\s*$", re.M),
-    "ref": re.compile(r"Payment Ref\. No\.\s*:\s*(\S+)"),
+    "ref": re.compile(r"Payment Ref(?:\. No\.|erence(?: No\.?)?)\s*:\s*(\S+)"),
     "utr": re.compile(r"UTR Number\s*:\s*(\S+)"),
-    "code": re.compile(r"Beneficiary Code\s*:\s*(\S+)"),
+    "code": re.compile(r"Beneficiary Code\s*:\s*(\S+)", re.I),
 }
 DMART_ROW = re.compile(r"^(\d{1,4})\s+(.+?)\s+(\d{2}-\d{2}-\d{4})\s+(" + AMT + r")\s+(" + AMT + r")\s+(" + AMT
                        + r")\s+(\d{3,6})\b\s*(.*)$")
@@ -62,13 +64,13 @@ def _table_lines(text: str):
     inside = False
     for raw in text.splitlines():
         s = raw.strip()
-        if s.startswith("Sr.No."):
+        if s.startswith("Sr.No"):
             inside = True
             continue
         if s.startswith("* The time taken") or s.startswith("Enrichment"):
             inside = False
             continue
-        if inside and s:
+        if inside and s and s != ".":           # Nov 2026 layout wraps 'Sr.No.' leaving a lone '.'
             yield s
 
 

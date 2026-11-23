@@ -266,10 +266,20 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
     """Queue one checked advice's writes (delete + insert + log). Returns the pa_mail_log
     status. Nothing is sent here: mark_mail_done sends the whole mail as one transaction, so
     a run killed mid-mail leaves nothing half-written."""
-    status, diff = advice.check()
     cust = CUSTOMERS[advice.customer]
     table = cust.table
     refs = refs or RefIndex(conn)
+    if advice.extra.get("void"):
+        # The payer's later document says this payment did not happen (Vijetha: a bounced cheque shows as a Receipt
+        # voucher only in later ledgers). Drop every copy this feed loaded under that reference.
+        with conn.cursor() as cur:
+            _queue(conn, cur.mogrify(f"delete from public.{table} where feed = %s and advice_ref = %s",
+                                     (feed, advice.advice_ref)))
+            _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, "voided", str(advice.extra["void"]),
+                                  advice, None))
+        refs.get(table).pop(advice.advice_ref, None)
+        return "voided"
+    status, diff = advice.check()
     with conn.cursor() as cur:
         if status == "no_lines":
             _queue(conn, _log_sql(cur, feed, mail, advice.source_file, idx, status, "", advice, diff))
@@ -346,7 +356,10 @@ def load_advice(conn, feed: str, mail: Mail, idx: int, advice: Advice, refs: Opt
             lines = advice.lines + [Line(
                 line_type="ROUND_OFF", net_amount=round(-diff, 2),
                 description=f"printed total {advice.payment_amount} less parsed lines {advice.line_sum()}")]
-        code = cust.codes[0] if len(cust.codes) == 1 else advice.extra.get("customer_code")
+        if cust.code_from:
+            code = cust.code_on(advice.payment_date)
+        else:
+            code = cust.codes[0] if len(cust.codes) == 1 else advice.extra.get("customer_code")
         values = []
         for n, l in enumerate(lines, start=1):
             raw = {"advice_extra": advice.extra, "line_extra": l.extra} if (advice.extra or l.extra) else None
