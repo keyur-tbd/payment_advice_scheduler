@@ -151,6 +151,8 @@ FEEDS: Dict[str, Feed] = {
         "from:sap@zomato.com subject:\"Payment Advice\" has:attachment", "blinkit", mailbox="kolwarehouse"),
     "zepto_portal": Feed(   # NOT mail: Zepto brand-portal advice PDFs (same layout as the mails), loaded by
         "", "zepto", priority=5, mail=False),   # load_zepto_portal.py; below the mailed copy
+    "ril_portal": Feed(     # NOT mail: Reliance SRM portal advice PDFs (the PDF ril_rr mails), fetched and loaded
+        "", "ril_rr", priority=15, mail=False),   # by load_ril_portal.py; below the mailed copy, above Axis's
     "kotak_more": Feed(  # More Retail via Kotak CMS, mailed to payments@ only; none reach it after 25 Aug 2026
         "from:(CMSAlerts@kotak.bank.in OR cmsalerts@kotak.com) subject:\"Credit Intimation\" has:attachment",
         "kotak_more", mailbox="payments"),

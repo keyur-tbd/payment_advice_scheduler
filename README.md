@@ -39,6 +39,7 @@ Data FY26-27 with RTV/DN Tracker".
 | `shri_balaji` | message-service@sender.zoho-inventory.in, Zoho Inventory PDF | `pa_shri_balaji` (C00509, since Feb 2026) |
 | `blinkit` | **kolwarehouse@** inbox: sap@zomato.com 'Payment Advice - YYYYMMDD', one PDF per UTR (invoices with TDS, CN/DN, variance, brand fund) | `pa_blinkit` (Blink Commerce C00524; since Apr 2026) |
 | `zepto_portal` | **not mail**: Payment Advice PDFs from the Zepto brand portal (brands.zepto.co.in, OTP login; same PDF as the mails), saved daily by the accounts team to Drive "Zepto Payment Advices (portal PDFs)"; `load_zepto_portal.py` in `payment_advice.yml` | `pa_zepto`; priority 5, below the mailed `zepto` (10) |
+| `ril_portal` | **not mail**: Payment Advice PDFs from the Reliance SRM portal (retsrm.ril.com sign-in, user id + password, no OTP; same PDF as the `ril_rr` mails), fetched daily by `ril_portal.yml` (`load_ril_portal.py`) for every `RELIANCE_SRM_USER_<n>` login | `pa_reliance`; priority 15, below the mailed `ril_rr` (20), above `axis` (10) |
 | `kotak_more` | **payments@** inbox: CMSAlerts@kotak.bank.in 'Credit Intimation', PAY_PAID_*.pdf | `pa_more_retail` (More Retail C00049; Feb 2025 - 25 Aug 2026, then HSBC: `more_hsbc`) |
 | `more_hsbc` | **payments@** inbox: docs@more.in 'Payment Advice - HSBCN... - MIMANSA INDUSTRIES', payment_advice_MORE*.pdf (Jun 2026: an extension-less .xlsx) + invoice_debitnote_breakup_MORE*.xlsx (Sep 2026 on) | `pa_more_retail` (C00049; since 29 Jun 2026); invoices net of TDS, DMQ shortage notes as GDN lines. docs@more.in's 'Standard Invoice Settlement' workbooks (adjustments only, no cash) are not read |
 
@@ -137,3 +138,20 @@ The `instamart` feed reads a second mailbox: secret `PA_GMAIL_TOKEN_JSON_INSTAMA
 
 Since 2026-11-19 two more mailboxes: `blinkit` reads kolwarehouse@ (secret `PA_GMAIL_TOKEN_JSON_KOLWAREHOUSE`), `kotak_more` reads payments@ (secret `PA_GMAIL_TOKEN_JSON_PAYMENTS`). Sign in once with `python gmail_auth.py kolwarehouse` / `python gmail_auth.py payments` (writes token_<mailbox>.json, git-ignored); locally set `PA_GMAIL_TOKEN_FILE_<MAILBOX>` to that file.
 More Retail's own 'Standard Invoice Settlement' workbooks (docs@more.in to payments@) are NOT payments: they list the GDN / TDS More books against each invoice when it books it, weeks before paying; none equals a receipt (checked 2026-11-19).
+
+## Reliance SRM portal
+
+Reliance mails only some advices (none after 30 Oct 2026, and never those of the HO vendor code); the portal's
+Statement of Accounts lists every payment document, and each one's Payment Advice is the mailed PDF.
+`ril_portal_fetch.py` signs in over plain HTTPS (no browser): the SAP form on retsrm.ril.com, then the dashboard's
+Statement of Accounts hand-over to srm-rrscm.ril.com, whose JSON API gives the statement rows and the PDFs.
+
+    python load_ril_portal.py                          # what the workflow runs: last 45 days, every login
+    python load_ril_portal.py --since 2026-04-01       # backfill
+    python load_ril_portal.py --dry-run                # download + parse only
+    python ril_portal_fetch.py --list-only             # the payment documents the portal lists
+
+Logins: secrets `RELIANCE_SRM_USER_1` / `RELIANCE_SRM_PASSWORD_1`, `..._2` (add `_3` and so on, plus the workflow
+env lines, for another login). Each PDF is one pseudo-mail `rilportal-<company><document><fiscal year>.PDF`, downloaded
+once. A refused password is not retried (SAP locks the user after a few misses): the run fails, the other login still
+loads. A payment the portal lists without a PDF prints `no PDF yet` and is asked for again on the next run.
