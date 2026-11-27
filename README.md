@@ -174,7 +174,8 @@ midnight (`2026-10-04T18:30Z` = 5 Oct). Only login 1 (RR10247416) has RTVs; the 
 Upsert on (rtv_no, rtv_year, line_no); rows are never deleted (`last_seen_at` says when the portal last listed one).
 Birbal's PRN tracker (migration 395) reads the table as platform 'Reliance'. Milk Basket is a Reliance company on the
 same vendor codes, so most rows (1,150 of 1,357 RTVs, Mar-Nov 2026) are Milk Basket DC returns; the tracker takes the
-party from OUR invoice the goods came on. A whole-range backfill holds every row in memory before the upsert, so on a
+party from OUR invoice the goods came on. Since migration 398 the tracker keeps only Trade parties' RTVs (Reliance
+Smart / Signature, Metro C&C); the Milk Basket rows (Marketplace) stay in this table but not in the tracker. A whole-range backfill holds every row in memory before the upsert, so on a
 busy machine run it a month at a time (`--since 2026-04-01 --until 2026-04-30`).
 
 ## Dorabjee RTV notes (`load_dorabjee_rtv.py` -> `public.dorabjee_rtv_lines`)
