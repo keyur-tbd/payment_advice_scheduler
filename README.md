@@ -155,3 +155,42 @@ Logins: secrets `RELIANCE_SRM_USER_1` / `RELIANCE_SRM_PASSWORD_1`, `..._2` (add 
 env lines, for another login). Each PDF is one pseudo-mail `rilportal-<company><document><fiscal year>.PDF`, downloaded
 once. A refused password is not retried (SAP locks the user after a few misses): the run fails, the other login still
 loads. A payment the portal lists without a PDF prints `no PDF yet` and is asked for again on the next run.
+
+### RTV notes (`load_ril_rtv.py` -> `public.ril_rtv_lines`)
+
+The same sign-in also reads the portal's **RTV Returns** report (srm-rrscm.ril.com/reports/rtv-returns), action
+`ARTICLE_DETAILS`: one row per RTV material document (`MBLNR`, the number finance puts in the EXP credit memo's
+PRN_Document_No) x article line, with the return PO (`EBELN`), the returning store / DC (`WERKS`), quantity, value,
+and OUR invoice no. (`XBLNR`) + sale PO (`REF_PO`) the goods came on. API: `POST /srm/rdl/api/v1/report/rtv/fetch
+{fromDate, toDate (YYYY-MM-DD), rtvNumbers: [], year, action}` -> `param.T_ITEM`; messageCode 7 = no rows. A month
+takes ~50 s on the portal's side, so it is read a calendar month per call. Dates come as UTC timestamps of IST
+midnight (`2026-10-04T18:30Z` = 5 Oct). Only login 1 (RR10247416) has RTVs; the HO login returns none.
+
+    python load_ril_rtv.py --setup                     # create the table (once)
+    python load_ril_rtv.py                             # what the workflow runs (second step): last 45 days
+    python load_ril_rtv.py --since 2026-03-01          # backfill
+    python load_ril_rtv.py --dry-run                   # fetch + summarise only
+
+Upsert on (rtv_no, rtv_year, line_no); rows are never deleted (`last_seen_at` says when the portal last listed one).
+Birbal's PRN tracker (migration 395) reads the table as platform 'Reliance'. Milk Basket is a Reliance company on the
+same vendor codes, so most rows (1,150 of 1,357 RTVs, Mar-Nov 2026) are Milk Basket DC returns; the tracker takes the
+party from OUR invoice the goods came on. A whole-range backfill holds every row in memory before the upsert, so on a
+busy machine run it a month at a time (`--since 2026-04-01 --until 2026-04-30`).
+
+## Dorabjee RTV notes (`load_dorabjee_rtv.py` -> `public.dorabjee_rtv_lines`)
+
+Dorabjee mails a purchase return / rejection note per return to accounts@ (`vendor@dorabjees.com`, subject
+"Dorabjee's - Purchase Return <branch>", one `rej.pdf`, ~80 a month). The PDF is clean text: Rej No (DR30750) + date,
+the Pune store, per line SKU code / description / MRP / purchase rate / rejected qty / amount, then HSN + GST, then
+"Remark : Near Expiry"; the totals; "Deduction from : Inv No: 27MUM-12513 .. GRR No: DG90341". Finance quotes the Rej
+No as the EXP credit memo's PRN_Document_No. Each note is checked against its printed totals (`parse_ok`).
+
+    python load_dorabjee_rtv.py --setup                # create the table (once)
+    python load_dorabjee_rtv.py                        # what the workflow runs: mails of the last 60 days not loaded
+    python load_dorabjee_rtv.py --since 2026-03-01 --cache-dir C:/tmp/dora   # backfill
+    python load_dorabjee_rtv.py --dry-run --since 2026-11-01
+
+Key (rej_no, line_no). A note mailed again (its status moved on) replaces the earlier lines unless an even later mail
+is already in. Backfill 2026-11-27: 484 mails, 422 notes (Aug 2025 - Nov 2026), 2,253 lines, Rs 5.83 L, all adding
+up. Birbal's PRN tracker (migration 395) reads it as platform + party 'Dorabjee'; Dorabjee's SKU codes map to our items
+through `ref_platform_item_map` platform 'Dorabjee' (55 codes matched by name + MRP in 395, reviewed = false).

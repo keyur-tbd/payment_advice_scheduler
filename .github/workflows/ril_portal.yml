@@ -3,7 +3,8 @@ name: Reliance SRM portal to Supabase
 on:
   schedule:
     # 11:00 IST daily. Signs in to the Reliance SRM portal with each login id (user id + password, no OTP),
-    # reads the Statement of Accounts of the last 45 days and loads the payment advice PDFs not loaded yet.
+    # reads the Statement of Accounts of the last 45 days and loads the payment advice PDFs not loaded yet,
+    # then the RTV Returns report (article details) of the same 45 days into public.ril_rtv_lines.
     - cron: '30 5 * * *'
   workflow_dispatch:
     inputs:
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -39,3 +40,16 @@ jobs:
           args=""
           if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
           python load_ril_portal.py $args
+      - name: RTV notes (article details)
+        if: always()             # the RTV report does not depend on the advices
+        env:
+          RELIANCE_SRM_USER_1: ${{ secrets.RELIANCE_SRM_USER_1 }}
+          RELIANCE_SRM_PASSWORD_1: ${{ secrets.RELIANCE_SRM_PASSWORD_1 }}
+          RELIANCE_SRM_USER_2: ${{ secrets.RELIANCE_SRM_USER_2 }}
+          RELIANCE_SRM_PASSWORD_2: ${{ secrets.RELIANCE_SRM_PASSWORD_2 }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        # Reliance's RTV Returns report -> public.ril_rtv_lines (Birbal's PRN tracker, platform Reliance).
+        run: |
+          args=""
+          if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
+          python load_ril_rtv.py $args

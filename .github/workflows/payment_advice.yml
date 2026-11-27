@@ -44,6 +44,17 @@ jobs:
           if [ -n "${{ github.event.inputs.feeds }}" ]; then args="$args --feeds ${{ github.event.inputs.feeds }}"; fi
           if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
           python run.py $args
+      - name: Dorabjee RTV notes (mail)
+        if: always()             # the RTV notes do not depend on the advices
+        # Dorabjee's purchase return / rejection notes (rej.pdf to accounts@) -> public.dorabjee_rtv_lines
+        # (Birbal's PRN tracker, platform Dorabjee). Mails already loaded are skipped.
+        env:
+          PA_GMAIL_TOKEN_JSON: ${{ secrets.PA_GMAIL_TOKEN_JSON }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          args=""
+          if [ -n "${{ github.event.inputs.since }}" ]; then args="$args --since ${{ github.event.inputs.since }}"; fi
+          python load_dorabjee_rtv.py $args
       - name: Zepto portal PDFs (Drive)
         # The accounts team saves the day's Payment Advice PDFs from brands.zepto.co.in (OTP login) into
         # Drive "Zepto Payment Advices (portal PDFs)" (owner instamart@, accounts@ edits, birbal@ reads).

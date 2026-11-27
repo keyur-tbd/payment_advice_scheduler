@@ -127,6 +127,27 @@ class Portal:
             lo = hi + dt.timedelta(days=1)
         return rows
 
+    def rtv(self, start: dt.date, end: dt.date, action: str = "ARTICLE_DETAILS") -> List[dict]:
+        """'RTV Returns' report rows (reports/rtv-returns) posted in [start, end], read a calendar month at a time.
+        action: HEADER_DETAILS (one row per RTV document), ARTICLE_DETAILS (one per article line, adds our
+        invoice no. XBLNR and the sale PO REF_PO) or SERIAL_NO_DETAILS. messageCode 7 = no rows."""
+        rows, lo = [], start
+        while lo <= end:
+            # one calendar month per call: a month takes ~50 s on the portal's side, two months ran past the timeout
+            hi = min((lo.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1), end)
+            r = self.http.post(SRM + "/srm/rdl/api/v1/report/rtv/fetch", timeout=self.timeout,
+                               json={"fromDate": f"{lo:%Y-%m-%d}", "toDate": f"{hi:%Y-%m-%d}", "rtvNumbers": [],
+                                     "year": lo.year, "action": action})
+            j = r.json() if r.status_code == 200 else {}
+            code = j.get("messageCode")
+            if code == 200:
+                rows += (j.get("param") or {}).get("T_ITEM") or []
+            elif code != 7:
+                raise PortalError(f"{self.user}: RTV report {lo}..{hi} HTTP {r.status_code} "
+                                  f"code {code}: {str(j.get('message') or r.text)[:200]}")
+            lo = hi + dt.timedelta(days=1)
+        return rows
+
     def advice_pdf(self, company: str, fiscal_year: str, doc_no: str) -> Optional[bytes]:
         """The payment advice of one payment document; None when the portal has no PDF for it."""
         r = self.http.post(SRM + "/srm/rdl/api/v1/report/statement-off-acc/download/document", timeout=self.timeout,
