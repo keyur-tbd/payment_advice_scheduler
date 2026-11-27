@@ -194,3 +194,23 @@ Key (rej_no, line_no). A note mailed again (its status moved on) replaces the ea
 is already in. Backfill 2026-11-27: 484 mails, 422 notes (Aug 2025 - Nov 2026), 2,253 lines, Rs 5.83 L, all adding
 up. Birbal's PRN tracker (migration 395) reads it as platform + party 'Dorabjee'; Dorabjee's SKU codes map to our items
 through `ref_platform_item_map` platform 'Dorabjee' (55 codes matched by name + MRP in 395, reviewed = false).
+
+## More Retail GDN copies (`load_more_gdn.py` -> `public.more_gdn_lines`)
+
+More's GRN sender (`aws-report@moreretail.in`) also mails "<GRN no> GDN copy" to **payments@** (not accounts@; the
+GRN copies go to payments@ and kolwarehouse@): one `gdn_<GDN no>.pdf`, a Goods Discrepancy Note -- what a More DC
+rejected at GRN (short quantity supplied, damaged stock, excess quantity against PO). Header: PO, our invoice (some
+print only the number, "6706"), GDN + GRN no. and dates, receiving site. Per line: More article, HSN, description,
+reason, GRN cost, MRP, received / invoiced / rejected qty and the line amount, which is the RECEIVED value -- the
+rejected value is computed (rejected x cost) and is exactly what finance's SHGRN memo credits (External_Document_No =
+GDN no.). Description and reason wrap onto shared lines, so the table is read from word positions; a two-page note
+repeats the header on page 2 (skipped). Each line is checked against amount = received x cost and rejected =
+invoiced - received (`parse_ok`).
+
+    python load_more_gdn.py --setup                    # create the table (once)
+    python load_more_gdn.py                            # what the workflow runs: mails of the last 60 days not loaded
+    python load_more_gdn.py --since 2026-03-01 --cache-dir C:/tmp/more   # backfill (locally:
+                                                       #   PA_GMAIL_TOKEN_FILE_PAYMENTS=token_payments.json)
+
+Backfill 2026-11-27: 67 GDNs (Mar-Nov 2026; the first mail is 27 Mar), 163 lines, Rs 1.07 L, all checks passing.
+Birbal's PRN tracker (migration 397) reads it as platform + party 'More Retail'.
