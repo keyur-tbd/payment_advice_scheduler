@@ -209,6 +209,17 @@ def main() -> int:
                  json.dumps({"counts": counts, "since": str(since), "until": str(until),
                              **({"failed_logins": failed} if failed else {})})))
         print("TOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+        import catalog   # describe this feed in Birbal's pipeline catalog (Master board)
+        catalog.register(conn, {
+            "feed_key": FEED, "grp": "PRN / RTV", "source_kind": "portal",
+            "party": "Reliance (Reliance Smart / Signature, Metro C&C, Milk Basket DCs; C00035 / C00356)",
+            "sender": "Reliance SRM portal (srm-rrscm.ril.com), report RTV Returns",
+            "how_found": "Sign in per login id (ril_portal_fetch.Portal), then POST /srm/rdl/api/v1/report/rtv/fetch "
+                         "action ARTICLE_DETAILS, one calendar month per call, last 45 days",
+            "document": "JSON rows: RTV document (MBLNR) x article, return PO, store / DC, quantity, value, our invoice + sale PO",
+            "parser": "load_ril_rtv.py row()", "repo": catalog.REPO, "script": "load_ril_rtv.py",
+            "runs_on": "GitHub Actions: Reliance SRM portal to Supabase (ril_portal.yml), step 'RTV notes (article details)'",
+            "schedule": "cron '30 5 * * *' UTC = 11:00 IST", "target_tables": [TABLE], "log_source": FEED})
     if failed:
         print(f"FAILED: login(s) not read: {', '.join(failed)}", file=sys.stderr)
         return 1

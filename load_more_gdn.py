@@ -273,6 +273,15 @@ def main() -> int:
                  counts["parse_mismatch"], "Success" if not failures else "Partial",
                  json.dumps({"counts": counts, "since": str(since), **({"unreadable": failures[:50]} if failures else {})})))
         print("TOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+        import catalog   # describe this feed in Birbal's pipeline catalog (Master board)
+        catalog.register(conn, {
+            "feed_key": FEED, "grp": "PRN / RTV", "party": "More Retail (C00049)", "source_kind": "mail",
+            "mailbox": "payments@thebakersdozen.in", "sender": "aws-report@moreretail.in (More's GRN sender)",
+            "how_found": f"Gmail (payments@): {QUERY} + after:<60 days back>; mails already loaded skipped",
+            "document": "gdn_<GDN no>.pdf: Goods Discrepancy Note (rejected at GRN: short, damaged, excess), PO, our invoice, GRN",
+            "parser": "load_more_gdn.py parse() (pdfplumber word positions, checked against the PDF's own arithmetic)",
+            "repo": catalog.REPO, "script": "load_more_gdn.py", "runs_on": catalog.ADVICE_RUNS_ON + ", step 'More Retail GDN copies (mail)'",
+            "schedule": catalog.ADVICE_SCHEDULE, "target_tables": [TABLE], "log_source": FEED})
     return 1 if failures else 0
 
 

@@ -456,3 +456,6 @@ def log_run(conn, feed: str, started: dt.datetime, ended: dt.datetime, counts: D
              counts.get("skipped", 0) + counts.get("duplicate", 0),
              "Success" if failed == 0 else "Partial", json.dumps({"counts": counts, **details})))
     conn.commit()
+    # the feed describes itself in Birbal's pipeline catalog (Master board), so a new feed appears there on its own
+    import catalog
+    catalog.register_advice_feed(conn, feed)

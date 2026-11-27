@@ -215,3 +215,11 @@ invoiced - received (`parse_ok`).
 
 Backfill 2026-11-27: 67 GDNs (Mar-Nov 2026; the first mail is 27 Mar), 163 lines, Rs 1.07 L, all checks passing.
 Birbal's PRN tracker (migration 397) reads it as platform + party 'More Retail'.
+
+## Birbal's pipeline catalog (Master board)
+
+Every run describes itself in Birbal's catalog (`app.register_pipeline`, Birbal migration 403) through `catalog.py`:
+`db.log_run` registers each payment-advice feed from `feeds.py` (inbox, Gmail query, parser, script, tables, log
+source) and the RTV / GDN loaders register their own entries. A feed added to `feeds.py` therefore shows on Birbal's
+Master board (/master) after its first run, with nothing to edit in Birbal. Registration never fails a load: if the
+catalog cannot be reached the run prints a warning and carries on. Notes written in the catalog by people are kept.

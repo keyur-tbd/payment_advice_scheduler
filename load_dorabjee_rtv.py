@@ -257,6 +257,16 @@ def main() -> int:
                  counts["parse_mismatch"], "Success" if not failures else "Partial",
                  json.dumps({"counts": counts, "since": str(since), **({"unreadable": failures[:50]} if failures else {})})))
         print("TOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+        import catalog   # describe this feed in Birbal's pipeline catalog (Master board)
+        catalog.register(conn, {
+            "feed_key": FEED, "grp": "PRN / RTV", "party": "Dorabjee & Co (C00011, Pune)", "source_kind": "mail",
+            "mailbox": "accounts@thebakersdozen.in", "sender": "vendor@dorabjees.com",
+            "how_found": f"Gmail (accounts@): {QUERY} + after:<60 days back>; mails already loaded skipped",
+            "document": "rej.pdf: purchase return / rejection note (Rej No, store, SKU lines with GST and remark, totals, "
+                        "the invoice it is deducted from)",
+            "parser": "load_dorabjee_rtv.py parse() (pdfplumber text, checked against the printed totals)",
+            "repo": catalog.REPO, "script": "load_dorabjee_rtv.py", "runs_on": catalog.ADVICE_RUNS_ON + ", step 'Dorabjee RTV notes (mail)'",
+            "schedule": catalog.ADVICE_SCHEDULE, "target_tables": [TABLE], "log_source": FEED})
     return 1 if failures else 0
 
 
